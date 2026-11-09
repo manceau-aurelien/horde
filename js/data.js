@@ -152,13 +152,13 @@ const TREES = {
         fx: l => pc(l >= 20 ? 4.0 : 0.14 * l) + ' de dégâts au pistolet' },
       { id: 'pis_rate', name: 'Détente rapide', icon: '⚡', max: 12, cost: 14, mult: 1.45, x: 0, y: 1, req: [['pis_dmg', 2]],
         desc: 'Le pistolet tire plus vite.',
-        fx: l => fmt(3.2 * (1 + (l >= 12 ? 1.5 : 0.08 * l))) + ' tirs / seconde' },
+        fx: l => fmt(3.8 * (1 + (l >= 12 ? 1.5 : 0.08 * l))) + ' tirs / seconde' },
       { id: 'pis_crit', name: 'Tir précis', icon: '🎯', max: 8, cost: 20, mult: 1.45, x: 1, y: 1, req: [['pis_dmg', 3]],
         desc: 'Chance de coup critique, pour toutes les armes.',
         fx: l => l >= 8 ? '50 % de critique (dégâts ×2,6)' : Math.round(5 + 3.5 * l) + ' % de critique (dégâts ×2)' },
       { id: 'pis_pierce', name: 'Balles perforantes', icon: '📌', max: 3, cost: 40, mult: 1.9, ultCost: 5.5, x: 0, y: 2, req: [['pis_rate', 2]],
-        desc: 'Les balles du pistolet traversent les zombies.',
-        fx: l => 'Traverse ' + (l >= 3 ? 5 : l) + ' zombie' + (l > 1 ? 's' : '') },
+        desc: 'Les balles du pistolet traversent davantage de zombies : alignez la horde dans un couloir.',
+        fx: l => 'Traverse ' + (l >= 3 ? 7 : 2 + l) + ' zombies' },
       { id: 'pis_dual', name: 'Pistolets jumelés', icon: '✌️', max: 2, cost: 150, mult: 2.2, ultCost: 5.5, x: 0.5, y: 3, req: [['pis_pierce', 1], ['pis_crit', 2]],
         desc: 'Tire plusieurs balles à la fois.',
         fx: l => (l >= 2 ? 4 : 1 + l) + ' balle' + (l ? 's' : '') + ' par tir' },
@@ -166,7 +166,7 @@ const TREES = {
       // --- Armes ---
       { id: 'w_shotgun', name: 'Fusil à pompe', icon: '💣', max: 10, cost: 20, mult: 1.38, x: 2.75, y: 0,
         desc: 'Débloque le fusil à pompe : une gerbe de plombs à courte portée. Munitions dans les caisses.',
-        fx: l => !l ? 'Non débloqué' : l >= 10 ? '14 plombs, +180 % de dégâts, traverse 2 zombies' : (5 + Math.floor(l / 2)) + ' plombs, ' + pc(0.11 * (l - 1)) + ' de dégâts' },
+        fx: l => !l ? 'Non débloqué' : l >= 10 ? '14 plombs, +180 % de dégâts, traverse 3 zombies' : (5 + Math.floor(l / 2)) + ' plombs, ' + pc(0.11 * (l - 1)) + ' de dégâts' },
       { id: 'w_rifle', name: 'Fusil d\'assaut', icon: '🪖', max: 10, cost: 45, mult: 1.38, x: 2.75, y: 1, req: [['w_shotgun', 1]],
         desc: 'Débloque le fusil d\'assaut : tir automatique rapide et précis.',
         fx: l => !l ? 'Non débloqué' : l >= 10 ? '+180 % de dégâts, balles perforantes' : pc(0.11 * (l - 1)) + ' de dégâts' },
@@ -189,7 +189,7 @@ const TREES = {
         fx: l => !l ? 'Aucune munition au départ' : (l >= 8 ? 100 : 8 * l) + ' % d\'une caisse pour chaque arme' },
       { id: 'log_freq', name: 'Ravitaillement', icon: '🪂', max: 8, cost: 16, mult: 1.45, x: 5.25, y: 1, req: [['log_crate', 1]],
         desc: 'Les caisses apparaissent plus souvent.',
-        fx: l => 'Une caisse toutes les ' + fmt(l >= 8 ? 6.0 : 16 * Math.pow(0.92, l)) + ' s' },
+        fx: l => 'Une caisse toutes les ' + fmt(l >= 8 ? 5.0 : 13 * Math.pow(0.92, l)) + ' s' },
       { id: 'log_scav', name: 'Récupérateur', icon: '🧲', max: 6, cost: 25, mult: 1.5, x: 6, y: 1, req: [['log_crate', 2]],
         desc: 'Les zombies laissent parfois tomber des chargeurs.',
         fx: l => fmt(l >= 6 ? 12 : 1.2 * l) + ' % de chance par zombie' },
@@ -229,7 +229,7 @@ const TREES = {
       // --- Corps ---
       { id: 'body_hp', name: 'Endurance', icon: '❤️', max: 15, cost: 8, mult: 1.42, x: 9.75, y: 0,
         desc: 'Plus de points de vie.',
-        fx: l => (110 + (l >= 15 ? 400 : 18 * l)) + ' PV maximum' },
+        fx: l => (120 + (l >= 15 ? 400 : 18 * l)) + ' PV maximum' },
       { id: 'body_speed', name: 'Entraînement', icon: '👟', max: 6, cost: 15, mult: 1.5, x: 9.25, y: 1, req: [['body_hp', 1]],
         desc: 'Se déplace plus vite.',
         fx: l => pc(l >= 6 ? 0.35 : 0.04 * l) + ' de vitesse' },
@@ -370,7 +370,7 @@ function computeStats(cls, levels) {
     } : null;
   } else {
     common();
-    s.maxHp = 110 + (L('body_hp') >= 15 ? 400 : 18 * L('body_hp'));
+    s.maxHp = 120 + (L('body_hp') >= 15 ? 400 : 18 * L('body_hp'));
     s.speed = 190 * (1 + (L('body_speed') >= 6 ? 0.35 : 0.04 * L('body_speed')));
     s.regen = L('body_regen') >= 8 ? 5.0 : 0.38 * L('body_regen');
     s.healChance = 0.01;
@@ -389,10 +389,10 @@ function computeStats(cls, levels) {
     const W = {};
     W.pistol = {
       unlocked: true,
-      dmg: 18 * (1 + (L('pis_dmg') >= 20 ? 4.0 : 0.14 * L('pis_dmg'))),
-      rate: 3.2 * (1 + (L('pis_rate') >= 12 ? 1.5 : 0.08 * L('pis_rate'))),
+      dmg: 24 * (1 + (L('pis_dmg') >= 20 ? 4.0 : 0.14 * L('pis_dmg'))),
+      rate: 3.8 * (1 + (L('pis_rate') >= 12 ? 1.5 : 0.08 * L('pis_rate'))),
       spread: 0.04, speed: 980, range: 620,
-      pierce: L('pis_pierce') >= 3 ? 5 : L('pis_pierce'),
+      pierce: L('pis_pierce') >= 3 ? 7 : 2 + L('pis_pierce'),
       count: L('pis_dual') >= 2 ? 4 : 1 + L('pis_dual'),
       infinite: true,
     };
@@ -402,15 +402,15 @@ function computeStats(cls, levels) {
       rate: 1.25,
       pellets: L('w_shotgun') >= 10 ? 14 : 5 + Math.floor(L('w_shotgun') / 2),
       spread: 0.5, speed: 860, range: 360,
-      pierce: L('w_shotgun') >= 10 ? 2 : 1,
-      crate: 7,
+      pierce: L('w_shotgun') >= 10 ? 3 : 2,
+      crate: 16,
     };
     W.rifle = {
       unlocked: !!L('w_rifle'),
       dmg: 17 * wl('w_rifle'),
       rate: 9.2, spread: 0.07, speed: 1100, range: 720,
-      pierce: L('w_rifle') >= 10 ? 1 : 0,
-      crate: 40,
+      pierce: L('w_rifle') >= 10 ? 3 : 1,
+      crate: 90,
     };
     W.flamer = {
       unlocked: !!L('w_flamer'),
@@ -419,20 +419,20 @@ function computeStats(cls, levels) {
       range: L('w_flamer') >= 10 ? 270 : 200,
       arc: 0.55,
       burn: 9 * wl('w_flamer'),
-      crate: 65,
+      crate: 150,
     };
     W.launcher = {
       unlocked: !!L('w_launcher'),
       dmg: 75 * wl('w_launcher'),
       radius: 95 * (1 + (L('w_launcher') >= 10 ? 0.65 : 0.05 * Math.max(0, L('w_launcher') - 1))),
       rate: 1.25, speed: 620, range: 520,
-      crate: 4,
+      crate: 9,
     };
     W.minigun = {
       unlocked: !!L('w_minigun'),
       dmg: 15 * wl('w_minigun'),
-      rate: 22, spread: 0.16, speed: 1100, range: 680, pierce: 0,
-      crate: 110,
+      rate: 22, spread: 0.16, speed: 1100, range: 680, pierce: 1,
+      crate: 260,
       slow: L('w_minigun') >= 10 ? 1.0 : 0.62,
     };
     for (const k of WEAPON_ORDER) {
@@ -448,7 +448,7 @@ function computeStats(cls, levels) {
       w.start = Math.min(w.start, w.cap);
     }
     s.weapons = W;
-    s.crateInterval = L('log_freq') >= 8 ? 6.0 : 16 * Math.pow(0.92, L('log_freq'));
+    s.crateInterval = L('log_freq') >= 8 ? 5.0 : 13 * Math.pow(0.92, L('log_freq'));
     s.radar = L('log_radar') > 0;
     s.scavenge = L('log_scav') >= 6 ? 0.12 : 0.012 * L('log_scav');
     s.medChance = L('log_med') >= 5 ? 0.65 : 0.20 + 0.06 * L('log_med');
@@ -486,31 +486,36 @@ function computeStats(cls, levels) {
 /* ------------------------------------------------------------------ */
 
 const ZTYPES = {
-  walker:  { name: 'Rôdeur', hp: 26, speed: [46, 70], r: 14, dmg: 6, atkCd: 1.0, souls: 1, mass: 1 },
-  runner:  { name: 'Coureur', hp: 18, speed: [108, 128], r: 12, dmg: 5, atkCd: 0.8, souls: 2, mass: 0.8 },
-  boomer:  { name: 'Gonflé', hp: 45, speed: [42, 54], r: 18, dmg: 0, atkCd: 1.0, souls: 2, mass: 1.6, explode: { dmg: 26, r: 85 } },
-  brute:   { name: 'Brute', hp: 170, speed: [40, 50], r: 22, dmg: 15, atkCd: 1.2, souls: 6, mass: 4 },
-  spitter: { name: 'Cracheur', hp: 34, speed: [52, 62], r: 13, dmg: 4, atkCd: 1.0, souls: 3, mass: 0.9,
-    ranged: { dmg: 10, range: 300, keep: 230, cd: 2.6, speed: 270 } },
-  boss:    { name: 'Colosse', hp: 1500, speed: [54, 54], r: 38, dmg: 30, atkCd: 1.3, souls: 80, mass: 30, boss: true },
+  walker:  { name: 'Rôdeur', hp: 30, speed: [58, 86], r: 14, dmg: 9, atkCd: 0.85, souls: 0.14, xp: 1, mass: 1 },
+  crawler: { name: 'Rampant', hp: 10, speed: [98, 126], r: 9, dmg: 3, atkCd: 0.7, souls: 0.06, xp: 0.4, mass: 0.4 },
+  runner:  { name: 'Coureur', hp: 20, speed: [116, 138], r: 12, dmg: 6, atkCd: 0.8, souls: 0.3, xp: 1.5, mass: 0.8 },
+  boomer:  { name: 'Gonflé', hp: 45, speed: [48, 60], r: 18, dmg: 0, atkCd: 1.0, souls: 0.5, xp: 2, mass: 1.6, explode: { dmg: 26, r: 95 } },
+  brute:   { name: 'Brute', hp: 200, speed: [46, 56], r: 22, dmg: 18, atkCd: 1.2, souls: 2, xp: 8, mass: 4 },
+  spitter: { name: 'Cracheur', hp: 34, speed: [56, 66], r: 13, dmg: 4, atkCd: 1.0, souls: 0.7, xp: 3, mass: 0.9,
+    ranged: { dmg: 10, range: 330, keep: 200, cd: 2.6, speed: 280 } },
+  boss:    { name: 'Colosse', hp: 3200, speed: [62, 62], r: 36, dmg: 32, atkCd: 1.3, souls: 80, xp: 150, mass: 30, boss: true },
 };
+const ZKEYS = Object.keys(ZTYPES);
 
-function waveTotal(n) {
-  return Math.round(10 + 6 * n + 0.32 * n * n);
+/* La horde : le nombre explose, pas la vitesse. À deux, la marée est plus dense. */
+function waveTotal(n, players = 1) {
+  return Math.round((90 + 45 * n + 4 * n * n) * (players > 1 ? 1.6 : 1));
 }
-
-function waveHpScale(n) { return 1 + 0.08 * (n - 1) + 0.007 * (n - 1) * (n - 1); }
-function waveDmgScale(n) { return 1 + 0.045 * (n - 1) + 0.0025 * (n - 1) * (n - 1); }
+function waveHpScale(n) { return 1 + 0.08 * (n - 1) + 0.008 * (n - 1) * (n - 1); }
+function waveDmgScale(n) { return 1 + 0.05 * (n - 1) + 0.003 * (n - 1) * (n - 1); }
+/* Durée maximale d'une vague : passé ce délai, la suivante déferle même si la précédente n'est pas nettoyée. */
+function waveTimer(n) { return 55 + Math.min(45, 2.5 * n); }
 
 function waveMix(n) {
-  const mix = {
-    runner: n >= 4 ? Math.min(0.15, 0.025 * (n - 3)) : 0,
-    boomer: n >= 5 ? Math.min(0.08, 0.016 * (n - 4)) : 0,
-    brute: n >= 7 ? Math.min(0.07, 0.011 * (n - 6)) : 0,
-    spitter: n >= 9 ? Math.min(0.08, 0.012 * (n - 8)) : 0,
+  return {
+    runner: n >= 4 ? Math.min(0.14, 0.025 * (n - 3)) : 0,
+    boomer: n >= 5 ? Math.min(0.07, 0.014 * (n - 4)) : 0,
+    brute: n >= 7 ? Math.min(0.06, 0.010 * (n - 6)) : 0,
+    spitter: n >= 9 ? Math.min(0.07, 0.012 * (n - 8)) : 0,
   };
-  return mix;
 }
+/* Part des meutes de Rampants (elles arrivent en bloc). */
+function crawlerShare(n) { return n >= 3 ? Math.min(0.3, 0.07 * (n - 2)) : 0; }
 
 function pickZombieType(n, rnd) {
   const mix = waveMix(n);
@@ -521,3 +526,8 @@ function pickZombieType(n, rnd) {
   }
   return 'walker';
 }
+
+/* Niveaux gagnés pendant une partie (partagés par l'équipe). */
+function xpNeed(level) { return Math.round(30 + 22 * level + 3 * level * level); }
+function levelDmg(level) { return 1 + 0.06 * (level - 1); }
+function levelHp(level) { return 1 + 0.03 * (level - 1); }

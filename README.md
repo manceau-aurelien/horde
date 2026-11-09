@@ -1,19 +1,41 @@
-# HORDE — Survie incrémentale
+# HORDE — Le labyrinthe
 
-Jeu de survie vu de dessus : les zombies arrivent par vagues, chaque vague plus nombreuse que la précédente. Ils ne vont pas plus vite, c'est le nombre qui fait la différence. Chaque zombie abattu laisse des âmes, qui servent à faire grandir l'arbre de compétences de son personnage entre deux parties.
+Jeu de survie vu de dessus : un grand labyrinthe, une marée de zombies qui déferle par les couloirs, et deux personnages — le Rōnin et le Soldat — jouables **seul ou à deux à distance**. Chaque zombie abattu laisse des âmes, qui font grandir l'arbre de compétences entre deux parties.
 
-Il suffit d'ouvrir `index.html` pour jouer. Mis en ligne (par exemple sur GitHub Pages), le jeu peut être ajouté à l'écran d'accueil d'un téléphone et reste jouable hors connexion.
+Il suffit d'ouvrir `index.html` pour jouer. Mis en ligne (par exemple sur GitHub Pages), le jeu peut être ajouté à l'écran d'accueil d'un téléphone et reste jouable hors connexion en solo.
+
+## Le labyrinthe et la horde
+
+- **Un labyrinthe différent à chaque partie**, sans cul-de-sac : on peut toujours fuir… ou être pris en tenaille. Quelques places ouvertes servent de champs de bataille.
+- **Des centaines de zombies à la fois.** Ils suivent le chemin le plus court vers le joueur le plus proche et s'entassent dans les couloirs : il faut sans cesse choisir sa trajectoire.
+- **La carte (Tab)** montre le labyrinthe entier ; le rouge indique où se trouve la horde.
+- **La marée monte** : chaque vague a un compte à rebours. Si elle n'est pas nettoyée à temps, la suivante déferle par-dessus.
+- **Le labyrinthe se reconfigure** toutes les 3 vagues : des murs se lèvent (rouge), d'autres tombent (bleu).
+- **Reliques** (losange violet, flèche à l'écran) : Fureur (dégâts doublés, Ki et munitions gratuits), Nova (souffle la horde) ou Glaciation (fige la horde).
+- **Niveaux en cours de partie** : les victimes font monter un niveau partagé (+6 % de dégâts, +3 % de vie, et une onde de choc à chaque palier).
+- **Carnage** : enchaîner les victimes sans pause multiplie les âmes, jusqu'à ×2.
+
+## Jouer à deux à distance
+
+1. Les deux joueurs ouvrent le jeu (la même adresse en ligne, ou chacun sa copie).
+2. L'un clique sur **Coop en ligne → Créer une partie** et transmet le code de 5 caractères (ou le lien d'invitation).
+3. L'autre saisit le code et clique sur **Rejoindre**.
+4. L'hôte choisit qui joue le Rōnin et qui joue le Soldat, puis lance.
+
+Chacun garde ses propres âmes et son propre arbre. Les âmes ramassées profitent aux deux joueurs. Un joueur à terre est relevé si son coéquipier reste 3 secondes à côté de lui ; la partie s'arrête quand les deux sont à terre. À deux, la horde est 60 % plus nombreuse et un peu plus résistante.
+
+La liaison est directe entre les deux navigateurs (WebRTC). Le serveur public PeerJS ne sert qu'à les mettre en relation ; il faut donc une connexion Internet, et certains réseaux très restrictifs peuvent bloquer la liaison. La partie continue même si l'un des onglets passe en arrière-plan.
 
 ## Les deux personnages
 
 **Le Rōnin** se bat au sabre. Chaque coup de sabre ainsi que chaque pouvoir consomme du Ki, qui se recharge avec le temps :
 
 - **Poussée** (clic droit ou E) : repousse les zombies devant lui ; au rang ultime d'*Onde de choc*, tout autour de lui.
-- **Stase temporelle** (F) : une bulle qui ralentit le temps des zombies proches, jusqu'à les figer totalement au rang ultime. Elle se recharge 9 s après la fin de la bulle.
+- **Stase temporelle** (F) : une bulle qui ralentit le temps des zombies proches, jusqu'à les figer au rang ultime.
 - **Pas du vent** (Espace) : bond invulnérable, qui tranche les zombies traversés dès le niveau 3.
-- **Tempête de lames** (R) : tourbillon défensif de lames à échelle humaine autour de lui qui repousse violemment les zombies, détruit les projectiles et réduit les dégâts subis.
+- **Tempête de lames** (R) : tourbillon défensif qui repousse les zombies, détruit les projectiles et réduit les dégâts subis.
 
-**Le Soldat** n'a que son pistolet à munitions illimitées. Le fusil à pompe, le fusil d'assaut, le lance-flammes, le lance-grenades et la mitrailleuse se débloquent dans l'arbre, mais leurs munitions se trouvent dans les **caisses** larguées dans les ruines (il suffit de marcher dessus). Son arbre augmente progressivement les munitions de départ, le contenu et la fréquence des caisses, la capacité du sac, et ajoute grenades, roulade, adrénaline et tourelle.
+**Le Soldat** a un pistolet à munitions illimitées dont les balles traversent plusieurs zombies : dans un couloir, aligner la horde paie. Le fusil à pompe, le fusil d'assaut, le lance-flammes, le lance-grenades et la mitrailleuse se débloquent dans l'arbre ; leurs munitions se trouvent dans les **caisses** dispersées dans le labyrinthe. Grenades (elles passent par-dessus les murs), roulade, adrénaline et tourelle complètent l'arsenal.
 
 ## Commandes
 
@@ -21,30 +43,29 @@ Il suffit d'ouvrir `index.html` pour jouer. Mis en ligne (par exemple sur GitHub
 |---|---|---|
 | Se déplacer | ZQSD, WASD ou flèches | Moitié gauche de l'écran |
 | Viser / attaquer | Souris, clic gauche maintenu | Automatique, ou glisser sur la moitié droite |
+| Carte du labyrinthe | Tab | Toucher la mini-carte |
 | Poussée / grenade | Clic droit ou E | Bouton |
 | Bond / roulade | Espace | Bouton |
 | Stase / adrénaline | F | Bouton |
 | Tempête / tourelle | R | Bouton |
-| Changer d'arme (Soldat) | 1 à 6, molette, Q ou Tab | Bouton 🔄 |
-| Pause | Échap ou P | Bouton II |
+| Changer d'arme (Soldat) | 1 à 6, molette ou Q | Bouton 🔄 |
+| Pause (menu en coop) | Échap ou P | Bouton II |
 | Couper le son | M | Options |
 
-Les options proposent aussi une visée et une attaque automatiques à la souris.
+## Le bestiaire
 
-## Le jeu
-
-- **Vagues :** coureurs dès la vague 4, Gonflés qui explosent dès la 5, Brutes dès la 7, Cracheurs d'acide dès la 9, et un Colosse toutes les 10 vagues (deux à la vague 20, trois à la 30…).
-- **Âmes :** gagnées en ramassant les orbes et à chaque vague terminée. Elles sont gardées même en cas de mort ou d'abandon.
-- **Arbres :** environ 30 compétences par personnage, en 5 branches. Maj + clic achète directement, le bouton « Réinitialiser » rend toutes les âmes investies.
-- **Départ avancé :** une fois la vague 5, 10, 15… atteinte, on peut recommencer directement depuis cette vague.
-
-La progression est enregistrée dans le navigateur (`localStorage`).
+Rôdeurs dès le début, meutes de Rampants à la vague 3, Coureurs à la 4, Gonflés explosifs à la 5, Brutes à la 7, Cracheurs à la 9, et un Colosse toutes les 10 vagues. Les murs arrêtent les balles, les crachats et les explosions.
 
 ## Fichiers
 
 - `js/data.js` : arbres de compétences, statistiques des personnages et des zombies, composition des vagues.
-- `js/game.js` : moteur (simulation, rendu, interface en jeu, commandes).
-- `js/sprites.js` : dessins pré-calculés (zombies, sol, obstacles).
-- `js/audio.js` : sons synthétisés, aucun fichier audio.
-- `js/ui.js` : menus, arbre de compétences, sauvegarde.
+- `js/world.js` : génération du labyrinthe, collisions, champ de flux (chemin des zombies), reconfiguration.
+- `js/engine.js` : état partagé, entrées, effets visuels et sonores répliqués.
+- `js/sim.js` : simulation (vagues, joueurs, zombies, projectiles, butin).
+- `js/render.js` : rendu du labyrinthe, de la horde et de l'interface en jeu.
+- `js/net.js` : liaison pair-à-pair pour le coop.
+- `js/game.js` : boucle principale et synchronisation hôte ↔ invité.
+- `js/sprites.js`, `js/audio.js`, `js/ui.js` : dessins pré-calculés, sons synthétisés, menus et sauvegarde.
 - `test-autopilot.js` : pilote automatique utilisé pour mesurer l'équilibrage (non chargé par le jeu).
+
+La progression est enregistrée dans le navigateur (`localStorage`).

@@ -8,6 +8,7 @@ const Sprites = (() => {
 
   const LOOK = {
     walker:  { skins: ['#7f9a6b', '#8a9a74', '#748f69', '#90a07a'], shirts: ['#4d3f33', '#34465f', '#5e3434', '#444444', '#55603a'] },
+    crawler: { skins: ['#a8947a', '#9c8a8a', '#b09a72'], shirts: ['#3a2a2a', '#2e2e38'] },
     runner:  { skins: ['#9db07e', '#a6b38a'], shirts: ['#7a2e2e', '#2f4f4f', '#3f3f5a'] },
     boomer:  { skins: ['#b6c25e', '#c0bf63'], shirts: ['#6a6a3a'] },
     brute:   { skins: ['#6b7a55', '#64704f'], shirts: ['#2c2c2c', '#3a2a22'] },

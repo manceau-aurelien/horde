@@ -56,6 +56,7 @@ const UI = (() => {
     $('#touch').classList.toggle('show', name === 'game' && Game.touchMode);
     if (name === 'menu') renderMenu();
     if (name === 'tree') renderTree(true);
+    if (name === 'coop') { sendHello(); renderCoop(); }
   }
 
   /* ---------------- Menu principal ---------------- */
@@ -105,9 +106,120 @@ const UI = (() => {
     d.lastStart = startWave;
     d.totals.runs++;
     Save.save();
-    Game.newRun(d.cls, d.levels[d.cls], startWave, {});
+    Game.newRun({ mode: 'solo', seed: (Math.random() * 2147483647) | 0, startWave, players: [{ cls: d.cls, levels: d.levels[d.cls] }], me: 0 });
     buildTouchButtons();
     setScreen('game');
+  }
+
+  /* ---------------- Coop en ligne ---------------- */
+  const coop = { role: null, hostCls: 'samurai', peerLevels: null, peerHere: false, status: '', busy: false };
+  const other = cls => cls === 'samurai' ? 'soldier' : 'samurai';
+  const myCoopCls = () => coop.role === 'guest' ? other(coop.hostCls) : coop.hostCls;
+
+  function coopStatus(msg) { coop.status = msg || ''; if (screen === 'coop') renderCoop(); }
+
+  function renderCoop() {
+    const inRoom = !!coop.role;
+    $('#coop-idle').hidden = inRoom;
+    $('#coop-room').hidden = !inRoom;
+    $('#btn-coop-host').disabled = coop.busy;
+    $('#btn-coop-join').disabled = coop.busy;
+    $('#coop-status').textContent = coop.status;
+    $('#btn-coop-back').textContent = inRoom ? 'Quitter le salon' : '← Retour';
+    if (!inRoom) return;
+    const mine = myCoopCls();
+    $('#coop-code-show').textContent = Net.code || '';
+    $('#coop-roles').innerHTML =
+      '<div class="role me"><div class="portrait ' + mine + '"></div><b>Vous</b><span>' + CLASSES[mine].name + '</span></div>' +
+      '<div class="role ' + (coop.peerHere ? '' : 'wait') + '"><div class="portrait ' + other(mine) + '"></div><b>Coéquipier</b><span>' +
+      (coop.peerHere ? CLASSES[other(mine)].name : 'en attente…') + '</span></div>';
+    const isHost = coop.role === 'host';
+    $('#coop-host-ctl').hidden = !isHost;
+    $('#coop-share').hidden = !isHost;
+    if (isHost) {
+      $('#btn-coop-start').disabled = !coop.peerHere;
+      const sel = $('#coop-wave'), cur = sel.value;
+      sel.innerHTML = '';
+      const best = Save.d.best[coop.hostCls] || 0;
+      for (const w of [1].concat(Array.from({ length: Math.floor(best / 5) }, (_, i) => (i + 1) * 5))) {
+        const o = el('option'); o.value = w; o.textContent = 'Vague ' + w; sel.appendChild(o);
+      }
+      if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+    }
+  }
+
+  function sendHello() { if (coop.role === 'guest') Net.send({ t: 'hello', levels: Save.d.levels }); }
+  function sendCfg() { if (coop.role === 'host') Net.send({ t: 'cfg', hostCls: coop.hostCls }); }
+
+  function coopHost() {
+    Sfx.init();
+    coop.busy = true; coopStatus('Création du salon…');
+    Net.host().then(() => {
+      coop.busy = false; coop.role = 'host'; coop.hostCls = Save.d.cls; coop.peerHere = false;
+      coopStatus('Donnez ce code à votre coéquipier, puis attendez qu\'il vous rejoigne.');
+    }).catch(e => { coop.busy = false; coop.role = null; coopStatus(e.message); });
+  }
+
+  function coopJoin(code) {
+    Sfx.init();
+    coop.busy = true; coopStatus('Connexion…');
+    Net.join(code).then(() => {
+      coop.busy = false; coop.role = 'guest'; coop.peerHere = true;
+      sendHello();
+      coopStatus('Connecté ! L\'hôte choisit les rôles et lance la partie.');
+    }).catch(e => { coop.busy = false; coop.role = null; coopStatus(e.message); });
+  }
+
+  function coopLeave() {
+    Net.close();
+    coop.role = null; coop.peerHere = false; coop.peerLevels = null; coop.status = '';
+  }
+
+  function coopStart() {
+    if (coop.role !== 'host' || !coop.peerHere) return;
+    const cfg = {
+      t: 'start', seed: (Math.random() * 2147483647) | 0, startWave: parseInt($('#coop-wave').value, 10) || 1,
+      players: [
+        { cls: coop.hostCls, levels: Save.d.levels[coop.hostCls] },
+        { cls: other(coop.hostCls), levels: (coop.peerLevels || {})[other(coop.hostCls)] || {} },
+      ],
+    };
+    Net.send(cfg);
+    runCoop('host', cfg, 0);
+  }
+
+  function runCoop(mode, cfg, meIdx) {
+    Sfx.init();
+    if (Game.R) Game.quitRun();
+    Save.d.totals.runs++;
+    Save.save();
+    Game.newRun({ mode, seed: cfg.seed, startWave: cfg.startWave, players: cfg.players, me: meIdx });
+    buildTouchButtons();
+    setScreen('game');
+  }
+
+  function bindNet() {
+    Net.handlers = {
+      onOpen: () => {
+        if (Net.role !== 'host') return;
+        coop.peerHere = true; sendCfg();
+        coopStatus('Coéquipier connecté. Lancez quand vous êtes prêts !');
+        Sfx.crate();
+      },
+      onData: m => {
+        if (!m || typeof m !== 'object') return;
+        if (m.t === 'hello' && coop.role === 'host') { coop.peerLevels = m.levels || {}; coop.peerHere = true; sendCfg(); if (screen === 'coop') renderCoop(); }
+        else if (m.t === 'cfg' && coop.role === 'guest') { coop.hostCls = m.hostCls === 'soldier' ? 'soldier' : 'samurai'; if (screen === 'coop') renderCoop(); }
+        else if (m.t === 'start' && coop.role === 'guest') runCoop('guest', m, 1);
+        else Game.netMessage(m);
+      },
+      onClose: () => {
+        coop.peerHere = false;
+        Game.peerLeft();
+        if (coop.role === 'guest') { coopLeave(); coopStatus('Connexion avec l\'hôte perdue.'); }
+        else if (coop.role === 'host') coopStatus('Votre coéquipier s\'est déconnecté. Le salon reste ouvert avec le même code.');
+      },
+    };
   }
 
   function endGame(sum) {
@@ -119,9 +231,13 @@ const UI = (() => {
     $('#over-title').textContent = 'Submergé à la vague ' + sum.wave;
     $('#over-stats').innerHTML =
       '<div><b>' + sum.wave + '</b><span>vague atteinte' + (isRecord ? ' · <em>record !</em>' : '') + '</span></div>' +
-      '<div><b>' + nf(sum.kills) + '</b><span>zombies abattus</span></div>' +
+      '<div><b>' + nf(sum.kills) + '</b><span>zombies abattus' + (sum.coop ? ' (dont ' + nf(sum.myKills) + ' par vous)' : '') + '</span></div>' +
       '<div><b>' + nf(sum.souls) + '</b><span>âmes récoltées</span></div>' +
-      '<div><b>' + Math.floor(sum.time / 60) + ' min ' + String(Math.floor(sum.time % 60)).padStart(2, '0') + '</b><span>de survie</span></div>';
+      '<div><b>' + Math.floor(sum.time / 60) + ' min ' + String(Math.floor(sum.time % 60)).padStart(2, '0') + '</b><span>de survie</span></div>' +
+      '<div><b>' + (sum.level || 1) + '</b><span>niveau atteint</span></div>' +
+      '<div><b>×' + nf(sum.combo || 0) + '</b><span>meilleur carnage</span></div>';
+    lastCoop = !!sum.coop;
+    $('#btn-over-again').textContent = lastCoop ? '👥 Retour au salon' : '↻ Rejouer';
     $('#over-souls').textContent = nf(d.souls);
     $('#over-tip').textContent = tipFor(sum);
     $('#btn-over-tree').classList.toggle('glow', canBuyAny(sum.cls));
@@ -129,16 +245,19 @@ const UI = (() => {
     setScreen('over');
   }
 
+  let lastCoop = false;
   function tipFor(sum) {
     const tips = sum.cls === 'samurai' ? [
       'Même les coups de sabre consomment du Ki : améliorez Réservoir de Ki, Souffle et Maîtrise pour tenir la cadence.',
-      'Dans les ruelles et les maisons cassées, la Poussée et la Tempête de lames permettent de se dégager d\'un goulot d\'étranglement.',
+      'Le labyrinthe n\'a aucun cul-de-sac : regardez la carte (Tab), le rouge indique d\'où vient la horde, et gardez toujours une sortie.',
+      'Les reliques violettes valent le détour : Fureur, Nova ou Glaciation peuvent retourner une vague entière.',
       'Le dernier rang de chaque compétence coûte très cher mais offre un bond de puissance massif (comme l\'arrêt total du temps pour la Stase).',
       'Moisson de Ki rend de l\'énergie à chaque zombie tué : indispensable face aux grandes hordes.',
       'Le Pas du vent rend invulnérable pendant le bond : parfait pour franchir une brèche envahie.',
     ] : [
       'Vous commencez avec très peu de munitions lourdes : utilisez le pistolet et cherchez vite les caisses dans les ruines !',
-      'Attention aux goulots d\'étranglement entre les maisons cassées : le fusil à pompe et le lance-flammes y excellent.',
+      'Dans un couloir, la horde se tasse : le fusil à pompe, le lance-flammes et les grenades (qui passent par-dessus les murs) y font des ravages.',
+      'Enchaîner les victimes sans pause fait grimper le Carnage : jusqu\'à deux fois plus d\'âmes.',
       'Le dernier rang de chaque compétence demande énormément d\'âmes mais transforme radicalement son efficacité.',
       'Le Radar indique les caisses hors de l\'écran pour planifier vos déplacements dans le labyrinthe.',
       'La roulade rend invulnérable : utilisez-la pour sortir d\'une maison encerclée.',
@@ -152,9 +271,9 @@ const UI = (() => {
     box.innerHTML = '';
     const R = Game.R;
     if (!R) return;
-    const st = R.st;
+    const me = R.players[R.me], st = me.st;
     const defs = [];
-    if (R.cls === 'samurai') {
+    if (me.cls === 'samurai') {
       defs.push({ a: 'secondary', icon: '✋', name: 'Poussée' });
       if (st.dash) defs.push({ a: 'mobility', icon: '🍃', name: 'Bond' });
       if (st.stasis) defs.push({ a: 'special', icon: '⏳', name: 'Stase' });
@@ -181,11 +300,12 @@ const UI = (() => {
   function updateTouchButtons() {
     const R = Game.R;
     if (!R || screen !== 'game' || !Game.touchMode) return;
-    const p = R.p, st = R.st;
+    const p = R.players[R.me], st = p.st;
     document.querySelectorAll('#touch-btns .tbtn').forEach(b => {
       const a = b.dataset.a;
       let ready = true, txt = '';
-      if (R.cls === 'samurai') {
+      if (a === 'swap') return;
+      if (p.cls === 'samurai') {
         const cost = a === 'secondary' ? st.push.cost : a === 'mobility' ? st.dash.cost : a === 'special' ? st.stasis.cost : st.ult.cost;
         ready = p.energy >= cost; txt = Math.round(cost);
         if (a === 'special' && p.stasisCd > 0) { ready = false; txt = Math.ceil(p.stasisCd) + ' s'; }
@@ -455,7 +575,9 @@ const UI = (() => {
       onWaveClear: w => {
         const d = Save.d;
         const R = Game.R;
-        if (R && w > (d.best[R.cls] || 0)) d.best[R.cls] = w;
+        if (!R) return;
+        const cls = R.players[R.me].cls;
+        if (w > (d.best[cls] || 0)) d.best[cls] = w;
         Save.save();
       },
       onEnd: sum => endGame(sum),
@@ -469,11 +591,29 @@ const UI = (() => {
       Save.d.cls = c.dataset.cls; Save.save(); renderMenu();
     }));
     $('#btn-play').addEventListener('click', startGame);
-    $('#btn-tree').addEventListener('click', () => { Sfx.init(); treeCls = Save.d.cls; selected = null; setScreen('tree'); });
+    $('#btn-tree').addEventListener('click', () => { Sfx.init(); treeCls = Save.d.cls; selected = null; $('#scr-tree').dataset.from = 'menu'; setScreen('tree'); });
+    bindNet();
+    $('#btn-coop').addEventListener('click', () => { Sfx.init(); setScreen('coop'); });
+    $('#btn-coop-host').addEventListener('click', coopHost);
+    $('#btn-coop-join').addEventListener('click', () => coopJoin($('#coop-code').value));
+    $('#coop-code').addEventListener('keydown', e => { e.stopPropagation(); if (e.code === 'Enter') coopJoin($('#coop-code').value); });
+    $('#btn-coop-swap').addEventListener('click', () => { coop.hostCls = other(coop.hostCls); sendCfg(); renderCoop(); });
+    $('#btn-coop-start').addEventListener('click', coopStart);
+    $('#btn-coop-copy').addEventListener('click', () => {
+      const url = location.origin + location.pathname + '?join=' + Net.code;
+      const done = () => { $('#btn-coop-copy').textContent = 'Lien copié ✔'; setTimeout(() => { $('#btn-coop-copy').textContent = 'Copier le lien d\'invitation'; }, 1800); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => prompt('Lien d\'invitation :', url));
+      else prompt('Lien d\'invitation :', url);
+    });
+    $('#btn-coop-tree').addEventListener('click', () => { treeCls = coop.role ? myCoopCls() : Save.d.cls; selected = null; $('#scr-tree').dataset.from = 'coop'; setScreen('tree'); });
+    $('#btn-coop-back').addEventListener('click', () => { coopLeave(); setScreen('menu'); });
     $('#btn-options').addEventListener('click', () => openOptions('menu'));
     $('#btn-tree-back').addEventListener('click', () => setScreen($('#scr-tree').dataset.from || 'menu'));
     $('#btn-tree-reset').addEventListener('click', resetTree);
-    $('#btn-tree-play').addEventListener('click', () => { Save.d.cls = treeCls; Save.save(); renderMenu(); startGame(); });
+    $('#btn-tree-play').addEventListener('click', () => {
+      if (coop.role) { setScreen('coop'); return; }
+      Save.d.cls = treeCls; Save.save(); renderMenu(); startGame();
+    });
     document.querySelectorAll('.tree-tab').forEach(t => t.addEventListener('click', () => { treeCls = t.dataset.cls; selected = null; renderTree(true); }));
     bindTreeView();
 
@@ -484,15 +624,19 @@ const UI = (() => {
       if (!R) return;
       // abandon : on garde les âmes, la partie compte comme terminée
       R.over = true; R.endSent = true;
-      const sum = { cls: R.cls, wave: R.wave, kills: R.kills, souls: Math.round(R.souls), time: R.t };
+      const sum = Game.summary();
+      if (R.coop) coopLeave(); // quitter une partie à deux ferme la liaison
       endGame(sum);
     });
     $('#btn-touch-pause').addEventListener('click', () => Game.togglePause(true));
     $('#btn-touch-pause').addEventListener('touchstart', e => { e.preventDefault(); Game.togglePause(true); }, { passive: false });
 
-    $('#btn-over-again').addEventListener('click', startGame);
-    $('#btn-over-tree').addEventListener('click', () => { treeCls = Save.d.cls; selected = null; $('#scr-tree').dataset.from = 'menu'; setScreen('tree'); });
-    $('#btn-over-menu').addEventListener('click', () => setScreen('menu'));
+    $('#btn-over-again').addEventListener('click', () => { if (lastCoop) setScreen('coop'); else startGame(); });
+    $('#btn-over-tree').addEventListener('click', () => {
+      treeCls = coop.role ? myCoopCls() : Save.d.cls; selected = null;
+      $('#scr-tree').dataset.from = coop.role ? 'coop' : 'menu'; setScreen('tree');
+    });
+    $('#btn-over-menu').addEventListener('click', () => { coopLeave(); setScreen('menu'); });
 
     document.querySelectorAll('#scr-options input').forEach(i => i.addEventListener('input', readOptions));
     $('#btn-opt-back').addEventListener('click', () => {
@@ -506,16 +650,19 @@ const UI = (() => {
 
     window.addEventListener('keydown', e => {
       if (screen === 'menu' && (e.code === 'Enter')) startGame();
-      if (screen === 'over' && e.code === 'Enter') startGame();
-      if (screen === 'tree' && e.code === 'Escape') setScreen('menu');
+      if (screen === 'over' && e.code === 'Enter' && !lastCoop) startGame();
+      if (screen === 'tree' && e.code === 'Escape') setScreen($('#scr-tree').dataset.from || 'menu');
     });
 
     setInterval(updateTouchButtons, 120);
     window.addEventListener('beforeunload', () => Save.save());
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) { Save.save(); if (screen === 'game') Game.togglePause(true); }
+      if (document.hidden) { Save.save(); if (screen === 'game' && Game.R && !Game.R.coop) Game.togglePause(true); }
     });
     setScreen('menu');
+    // lien d'invitation : ?join=CODE
+    const jm = /[?&]join=([A-Za-z0-9]{5})/.exec(location.search);
+    if (jm) { $('#coop-code').value = jm[1].toUpperCase(); setScreen('coop'); coopJoin(jm[1]); }
   }
 
   return { init, setScreen, get screen() { return screen; } };

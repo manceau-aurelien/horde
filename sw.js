@@ -1,4 +1,4 @@
-const CACHE_NAME = 'horde-v1';
+const CACHE_NAME = 'horde-v2';
 const PRECACHE_URLS = [
   './',
   './index.html',
@@ -10,6 +10,11 @@ const PRECACHE_URLS = [
   './js/data.js',
   './js/audio.js',
   './js/sprites.js',
+  './js/world.js',
+  './js/engine.js',
+  './js/sim.js',
+  './js/render.js',
+  './js/net.js',
   './js/game.js',
   './js/ui.js',
 ];

@@ -21,7 +21,7 @@
     <div class="menu-wrap">
       <header class="title">
         <h1>HORDE</h1>
-        <p>Survie incrémentale · chaque vague est plus nombreuse que la précédente</p>
+        <p>Un labyrinthe. Une marée de zombies. Seul… ou à deux.</p>
       </header>
       <div class="souls-big">👻 <span id="menu-souls">0</span> <small>âmes</small></div>
       <div class="classes">
@@ -29,14 +29,14 @@
           <div class="portrait samurai"></div>
           <h2>Le Rōnin</h2>
           <p class="tag">Sabre, Ki et maîtrise du temps</p>
-          <p class="desc">Combat au sabre dans les ruines. Chaque coup de sabre et chaque pouvoir consomme du <b>Ki</b> : gérez votre énergie pour déclencher la <b>Poussée</b>, la <b>Stase temporelle</b>, le <b>Pas du vent</b> et la <b>Tempête de lames</b> défensive.</p>
+          <p class="desc">Combat au sabre au cœur de la horde. Chaque coup de sabre et chaque pouvoir consomme du <b>Ki</b> : gérez votre énergie pour déclencher la <b>Poussée</b>, la <b>Stase temporelle</b>, le <b>Pas du vent</b> et la <b>Tempête de lames</b> défensive.</p>
           <p class="meta"><span class="best"></span> · <span class="spent"></span></p>
         </button>
         <button class="class-card" data-cls="soldier">
           <div class="portrait soldier"></div>
           <h2>Le Soldat</h2>
           <p class="tag">Pistolet illimité, le reste se ramasse</p>
-          <p class="desc">Son pistolet ne manque jamais de balles. Pompe, fusil d'assaut, lance-flammes, lance-grenades et mitrailleuse commencent presque à sec et se rechargent avec les <b>caisses de munitions</b> larguées dans les ruines.</p>
+          <p class="desc">Son pistolet ne manque jamais de balles. Pompe, fusil d'assaut, lance-flammes, lance-grenades et mitrailleuse commencent presque à sec et se rechargent avec les <b>caisses de munitions</b> dispersées dans le labyrinthe.</p>
           <p class="meta"><span class="best"></span> · <span class="spent"></span></p>
         </button>
       </div>
@@ -45,13 +45,13 @@
         <select id="start-wave"></select>
       </div>
       <div class="menu-btns">
-        <button id="btn-play" class="btn primary big">▶ Jouer</button>
+        <button id="btn-play" class="btn primary big">▶ Jouer seul</button>
+        <button id="btn-coop" class="btn big coop-btn">👥 Coop en ligne</button>
         <button id="btn-tree" class="btn big">🌳 Compétences</button>
         <button id="btn-options" class="btn">⚙ Options</button>
-        <a href="chrono-echo.html" class="btn big" style="background: linear-gradient(90deg, #ff0077, #00f3ff); color: #050711; font-weight: 900; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(0,243,255,0.4); border: none;">⚡ CHRONO ECHO (Nouveau Jeu !)</a>
       </div>
       <p id="totals" class="totals"></p>
-      <p class="controls-help">Clavier : ZQSD / WASD ou flèches · souris pour viser et frapper · Échap : pause<br>Tactile : moitié gauche pour bouger, attaque automatique, glisser à droite pour viser</p>
+      <p class="controls-help">Clavier : ZQSD / WASD ou flèches · souris pour viser et frapper · Tab : carte · Échap : pause<br>Tactile : moitié gauche pour bouger, attaque automatique, glisser à droite pour viser, toucher la mini-carte pour l'agrandir</p>
     </div>
   </section>
 
@@ -69,6 +69,37 @@
     </div>
     <div id="tree-view"><div id="tree-inner"></div></div>
     <aside id="tree-detail"></aside>
+  </section>
+
+  <!-- Coop en ligne -->
+  <section id="scr-coop" class="screen overlay solid">
+    <div class="panel wide coop">
+      <h2>👥 Coop en ligne</h2>
+      <p class="coop-intro">Deux joueurs, chacun sur son écran : l'un incarne <b>le Rōnin</b>, l'autre <b>le Soldat</b>. Chacun garde ses âmes et son arbre de compétences. Un joueur à terre peut être relevé par l'autre.</p>
+      <div id="coop-idle" class="coop-idle">
+        <button id="btn-coop-host" class="btn primary big">Créer une partie</button>
+        <span class="coop-or">ou</span>
+        <div class="coop-join">
+          <input id="coop-code" maxlength="5" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <button id="btn-coop-join" class="btn big">Rejoindre</button>
+        </div>
+      </div>
+      <div id="coop-room" class="coop-room" hidden>
+        <div class="coop-code">Code du salon <b id="coop-code-show"></b></div>
+        <div id="coop-share"><button id="btn-coop-copy" class="btn small">Copier le lien d'invitation</button></div>
+        <div id="coop-roles" class="coop-roles"></div>
+        <div id="coop-host-ctl" class="coop-host-ctl">
+          <button id="btn-coop-swap" class="btn small">⇄ Échanger les rôles</button>
+          <label>Départ : <select id="coop-wave"></select></label>
+          <button id="btn-coop-start" class="btn primary big" disabled>▶ Lancer la partie</button>
+        </div>
+      </div>
+      <p id="coop-status" class="tip"></p>
+      <div class="menu-btns">
+        <button id="btn-coop-tree" class="btn">🌳 Compétences</button>
+        <button id="btn-coop-back" class="btn ghost">← Retour</button>
+      </div>
+    </div>
   </section>
 
   <!-- Pause -->
@@ -120,6 +151,11 @@
   <script src="js/data.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/sprites.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/sim.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/net.js"></script>
   <script src="js/game.js"></script>
   <script src="js/ui.js"></script>
 </body>

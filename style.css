@@ -203,3 +203,34 @@ button { font-family: inherit; color: inherit; }
   .tree-top { gap: 6px; padding: 8px; }
   .tree-souls { font-size: 15px; }
 }
+
+/* ---------- coop en ligne ---------- */
+.overlay.solid { background: radial-gradient(ellipse at 50% 0%, rgba(150, 30, 30, 0.28), transparent 60%), #0d0f0b; overflow-y: auto; touch-action: pan-y; }
+.coop-btn { border-color: #7dff9a66; background: linear-gradient(rgba(70, 150, 90, 0.35), rgba(30, 80, 45, 0.35)); }
+.coop-btn:hover { background: linear-gradient(rgba(80, 170, 100, 0.5), rgba(40, 100, 55, 0.5)); border-color: #7dff9a; }
+.panel.coop { gap: 14px; }
+.coop-intro { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; text-align: center; }
+.coop-intro b { color: var(--text); }
+.coop-idle { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.coop-or { color: var(--muted); font-size: 13px; }
+.coop-join { display: flex; gap: 8px; }
+#coop-code {
+  width: 150px; text-align: center; font: 800 24px var(--font); letter-spacing: 0.28em; text-transform: uppercase;
+  background: #1d1a14; color: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px 6px 8px 14px;
+  -webkit-user-select: text; user-select: text;
+}
+#coop-code:focus { outline: 2px solid var(--accent); }
+.coop-room { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; }
+.coop-room[hidden], .coop-idle[hidden], .coop-host-ctl[hidden] { display: none; }
+.coop-code { color: var(--muted); font-size: 14px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.coop-code b { font-size: 44px; letter-spacing: 0.3em; color: #fff; text-shadow: 0 0 24px rgba(125, 255, 154, 0.35); padding-left: 0.3em; -webkit-user-select: text; user-select: text; }
+.coop-roles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
+.coop-roles .role { background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.coop-roles .role.me { border-color: var(--accent); }
+.coop-roles .role.wait { opacity: 0.5; }
+.coop-roles .role b { font-size: 13px; color: var(--muted); font-weight: 600; }
+.coop-roles .role span { font-size: 17px; font-weight: 800; }
+.coop-host-ctl { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; color: var(--muted); }
+.coop-host-ctl select { background: #1d1a14; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 14px; }
+#coop-status { min-height: 1.3em; text-align: center; }
+.over-stats { grid-template-columns: repeat(3, 1fr); }
