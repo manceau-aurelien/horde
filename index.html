@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>HORDE — Survie incrémentale</title>
+  <meta name="description" content="Survivez aux vagues de zombies de plus en plus nombreuses avec le Rōnin ou le Soldat, et faites grandir leurs arbres de compétences.">
+  <meta name="theme-color" content="#0d0f0b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- Menu principal -->
+  <section id="scr-menu" class="screen">
+    <div class="menu-wrap">
+      <header class="title">
+        <h1>HORDE</h1>
+        <p>Survie incrémentale · chaque vague est plus nombreuse que la précédente</p>
+      </header>
+      <div class="souls-big">👻 <span id="menu-souls">0</span> <small>âmes</small></div>
+      <div class="classes">
+        <button class="class-card" data-cls="samurai">
+          <div class="portrait samurai"></div>
+          <h2>Le Rōnin</h2>
+          <p class="tag">Sabre, Ki et maîtrise du temps</p>
+          <p class="desc">Combat au sabre dans les ruines. Chaque coup de sabre et chaque pouvoir consomme du <b>Ki</b> : gérez votre énergie pour déclencher la <b>Poussée</b>, la <b>Stase temporelle</b>, le <b>Pas du vent</b> et la <b>Tempête de lames</b> défensive.</p>
+          <p class="meta"><span class="best"></span> · <span class="spent"></span></p>
+        </button>
+        <button class="class-card" data-cls="soldier">
+          <div class="portrait soldier"></div>
+          <h2>Le Soldat</h2>
+          <p class="tag">Pistolet illimité, le reste se ramasse</p>
+          <p class="desc">Son pistolet ne manque jamais de balles. Pompe, fusil d'assaut, lance-flammes, lance-grenades et mitrailleuse commencent presque à sec et se rechargent avec les <b>caisses de munitions</b> larguées dans les ruines.</p>
+          <p class="meta"><span class="best"></span> · <span class="spent"></span></p>
+        </button>
+      </div>
+      <div id="start-row" class="start-row">
+        <label for="start-wave">Départ :</label>
+        <select id="start-wave"></select>
+      </div>
+      <div class="menu-btns">
+        <button id="btn-play" class="btn primary big">▶ Jouer</button>
+        <button id="btn-tree" class="btn big">🌳 Compétences</button>
+        <button id="btn-options" class="btn">⚙ Options</button>
+        <a href="chrono-echo.html" class="btn big" style="background: linear-gradient(90deg, #ff0077, #00f3ff); color: #050711; font-weight: 900; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(0,243,255,0.4); border: none;">⚡ CHRONO ECHO (Nouveau Jeu !)</a>
+      </div>
+      <p id="totals" class="totals"></p>
+      <p class="controls-help">Clavier : ZQSD / WASD ou flèches · souris pour viser et frapper · Échap : pause<br>Tactile : moitié gauche pour bouger, attaque automatique, glisser à droite pour viser</p>
+    </div>
+  </section>
+
+  <!-- Arbre de compétences -->
+  <section id="scr-tree" class="screen">
+    <div class="tree-top">
+      <button id="btn-tree-back" class="btn small">← Retour</button>
+      <div class="tree-tabs">
+        <button class="tree-tab" data-cls="samurai">Rōnin</button>
+        <button class="tree-tab" data-cls="soldier">Soldat</button>
+      </div>
+      <div class="tree-souls">👻 <span id="tree-souls">0</span></div>
+      <button id="btn-tree-reset" class="btn small ghost" title="Rend toutes les âmes investies">↺ Réinitialiser</button>
+      <button id="btn-tree-play" class="btn small primary">▶ Jouer</button>
+    </div>
+    <div id="tree-view"><div id="tree-inner"></div></div>
+    <aside id="tree-detail"></aside>
+  </section>
+
+  <!-- Pause -->
+  <section id="scr-pause" class="screen overlay">
+    <div class="panel">
+      <h2>Pause</h2>
+      <button id="btn-resume" class="btn primary big">Reprendre</button>
+      <button id="btn-pause-options" class="btn">⚙ Options</button>
+      <button id="btn-quit" class="btn ghost">Abandonner (les âmes sont gardées)</button>
+    </div>
+  </section>
+
+  <!-- Fin de partie -->
+  <section id="scr-over" class="screen overlay">
+    <div class="panel wide">
+      <h2 id="over-title">Submergé</h2>
+      <div id="over-stats" class="over-stats"></div>
+      <div class="souls-big">👻 <span id="over-souls">0</span> <small>âmes à dépenser</small></div>
+      <p id="over-tip" class="tip"></p>
+      <div class="menu-btns">
+        <button id="btn-over-tree" class="btn primary big">🌳 Compétences</button>
+        <button id="btn-over-again" class="btn big">↻ Rejouer</button>
+        <button id="btn-over-menu" class="btn">Menu</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Options -->
+  <section id="scr-options" class="screen overlay">
+    <div class="panel">
+      <h2>Options</h2>
+      <label class="opt"><input type="checkbox" id="opt-sound"> Son <small>(touche M)</small></label>
+      <label class="opt">Volume <input type="range" id="opt-volume" min="0" max="100"></label>
+      <label class="opt"><input type="checkbox" id="opt-dmg"> Afficher les dégâts</label>
+      <label class="opt"><input type="checkbox" id="opt-shake"> Tremblements de l'écran</label>
+      <label class="opt"><input type="checkbox" id="opt-autoaim"> Visée automatique (souris)</label>
+      <label class="opt"><input type="checkbox" id="opt-autoatk"> Attaque automatique (souris)</label>
+      <button id="btn-opt-back" class="btn primary">OK</button>
+      <button id="btn-wipe" class="btn ghost danger">Effacer la progression</button>
+    </div>
+  </section>
+
+  <!-- Commandes tactiles -->
+  <div id="touch">
+    <button id="btn-touch-pause" class="tpause">II</button>
+    <div id="touch-btns"></div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>

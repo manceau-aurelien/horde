@@ -1,0 +1,19 @@
+{
+  "id": "horde-survie-incrementale",
+  "name": "HORDE — Survie incrémentale",
+  "short_name": "Horde",
+  "description": "Survivez aux vagues de zombies de plus en plus nombreuses avec le Rōnin ou le Soldat, et faites grandir leurs arbres de compétences.",
+  "lang": "fr-FR",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0d0f0b",
+  "theme_color": "#0d0f0b",
+  "categories": ["games"],
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

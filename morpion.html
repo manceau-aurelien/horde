@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Morpion (Tic-Tac-Toe)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .cell {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 2.2rem;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-4">
+  <div class="max-w-xs w-full bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl flex flex-col items-center">
+    
+    <div class="w-full flex items-center justify-between mb-4">
+      <div>
+        <h1 class="text-lg font-bold">🎮 Morpion</h1>
+        <p id="status-text" class="text-xs text-slate-400">À vous de jouer (X) !</p>
+      </div>
+
+      <select id="difficulty" class="text-xs bg-slate-700 border border-slate-600 rounded-lg px-2 py-1 text-slate-200 focus:outline-none">
+        <option value="easy">Facile</option>
+        <option value="medium" selected>Normal</option>
+        <option value="hard">Expert</option>
+      </select>
+    </div>
+
+    <!-- Score -->
+    <div class="w-full grid grid-cols-3 gap-2 text-center mb-4 text-xs">
+      <div class="bg-slate-900/60 border border-slate-700 rounded-lg py-2">
+        <span class="text-slate-400 block text-[11px]">Vous (X)</span>
+        <span id="score-x" class="font-bold text-sky-400 text-base">0</span>
+      </div>
+      <div class="bg-slate-900/60 border border-slate-700 rounded-lg py-2">
+        <span class="text-slate-400 block text-[11px]">Nuls</span>
+        <span id="score-ties" class="font-bold text-slate-400 text-base">0</span>
+      </div>
+      <div class="bg-slate-900/60 border border-slate-700 rounded-lg py-2">
+        <span class="text-slate-400 block text-[11px]">IA (O)</span>
+        <span id="score-o" class="font-bold text-rose-400 text-base">0</span>
+      </div>
+    </div>
+
+    <!-- Grille -->
+    <div class="grid grid-cols-3 gap-2 w-full max-w-[240px] mb-4">
+      <button class="cell bg-slate-900/80 hover:bg-slate-700/60 border border-slate-700 rounded-xl" data-index="0"></button>
+      <button class="cell bg-slate-900/80 hover:bg-slate-700/60 border border-slate-700 rounded-xl" data-index="1"></button>
+      <button class="cell bg-slate-900/80 hover:bg-slate-700/60 border border-slate-700 rounded-xl" data-index="2"></button>
+      <button class="cell bg-slate-900/80 hover:bg-slate-700/60 border border-slate-700 rounded-xl" data-index="3"></button>
+      <button class="cell bg-slate-900/80 hover:bg-slate-700/60 border border-slate-700 rounded-xl" data-index="4"></button>
+      <button class="cell bg-slate-900/80 hover:bg-slate-700/60 border border-slate-700 rounded-xl" data-index="5"></button>
+      <button class="cell bg-slate-900/80 hover:bg-slate-700/60 border border-slate-700 rounded-xl" data-index="6"></button>
+      <button class="cell bg-slate-900/80 hover:bg-slate-700/60 border border-slate-700 rounded-xl" data-index="7"></button>
+      <button class="cell bg-slate-900/80 hover:bg-slate-700/60 border border-slate-700 rounded-xl" data-index="8"></button>
+    </div>
+
+    <!-- Actions -->
+    <div class="w-full flex items-center justify-between gap-2">
+      <button id="reset-board" class="flex-1 py-2 px-3 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold active:scale-95 transition-all">
+        Nouvelle manche
+      </button>
+      <button id="reset-scores" class="py-2 px-3 border border-slate-600 hover:bg-slate-700 text-slate-300 rounded-lg text-xs active:scale-95 transition-all">
+        RAZ scores
+      </button>
+    </div>
+
+  </div>
+
+  <script>
+    let board = Array(9).fill(null);
+    let isGameOver = false;
+    let scores = { x: 0, o: 0, ties: 0 };
+    const WINNING_COMBOS = [
+      [0,1,2], [3,4,5], [6,7,8],
+      [0,3,6], [1,4,7], [2,5,8],
+      [0,4,8], [2,4,6]
+    ];
+
+    const cells = document.querySelectorAll('.cell');
+    const statusText = document.getElementById('status-text');
+    const diffSelect = document.getElementById('difficulty');
+    const scoreXEl = document.getElementById('score-x');
+    const scoreOEl = document.getElementById('score-o');
+    const scoreTiesEl = document.getElementById('score-ties');
+    const resetBtn = document.getElementById('reset-board');
+    const resetScoresBtn = document.getElementById('reset-scores');
+
+    function checkWinner(b) {
+      for (const [a, bIdx, c] of WINNING_COMBOS) {
+        if (b[a] && b[a] === b[bIdx] && b[a] === b[c]) {
+          return { winner: b[a], combo: [a, bIdx, c] };
+        }
+      }
+      if (b.every(cell => cell !== null)) {
+        return { winner: 'tie', combo: [] };
+      }
+      return null;
+    }
+
+    function render() {
+      cells.forEach((cell, idx) => {
+        const val = board[idx];
+        cell.textContent = val || '';
+        cell.classList.remove('text-sky-400', 'text-rose-400', 'bg-emerald-500/20', 'border-emerald-500');
+        if (val === 'X') {
+          cell.classList.add('text-sky-400');
+        } else if (val === 'O') {
+          cell.classList.add('text-rose-400');
+        }
+      });
+    }
+
+    function highlightWinner(combo) {
+      combo.forEach(idx => {
+        cells[idx].classList.add('bg-emerald-500/20', 'border-emerald-500');
+      });
+    }
+
+    function getBestMove(b) {
+      const diff = diffSelect.value;
+      const emptyIndices = b.map((val, idx) => val === null ? idx : null).filter(v => v !== null);
+
+      if (diff === 'easy') {
+        return emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
+      }
+
+      if (diff === 'medium' && Math.random() < 0.4) {
+        return emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
+      }
+
+      function minimax(currBoard, depth, isMaximizing) {
+        const result = checkWinner(currBoard);
+        if (result) {
+          if (result.winner === 'O') return 10 - depth;
+          if (result.winner === 'X') return depth - 10;
+          if (result.winner === 'tie') return 0;
+        }
+
+        if (isMaximizing) {
+          let bestScore = -Infinity;
+          for (let i = 0; i < 9; i++) {
+            if (currBoard[i] === null) {
+              currBoard[i] = 'O';
+              let score = minimax(currBoard, depth + 1, false);
+              currBoard[i] = null;
+              bestScore = Math.max(score, bestScore);
+            }
+          }
+          return bestScore;
+        } else {
+          let bestScore = Infinity;
+          for (let i = 0; i < 9; i++) {
+            if (currBoard[i] === null) {
+              currBoard[i] = 'X';
+              let score = minimax(currBoard, depth + 1, true);
+              currBoard[i] = null;
+              bestScore = Math.min(score, bestScore);
+            }
+          }
+          return bestScore;
+        }
+      }
+
+      let bestScore = -Infinity;
+      let move = emptyIndices[0];
+      for (const idx of emptyIndices) {
+        b[idx] = 'O';
+        const score = minimax(b, 0, false);
+        b[idx] = null;
+        if (score > bestScore) {
+          bestScore = score;
+          move = idx;
+        }
+      }
+      return move;
+    }
+
+    function aiTurn() {
+      if (isGameOver) return;
+      statusText.textContent = "Je réfléchis...";
+      
+      setTimeout(() => {
+        if (isGameOver) return;
+        const move = getBestMove(board);
+        if (move !== undefined) {
+          board[move] = 'O';
+          render();
+          const outcome = checkWinner(board);
+          if (outcome) {
+            handleEndGame(outcome);
+          } else {
+            statusText.textContent = "À vous de jouer (X) !";
+          }
+        }
+      }, 350);
+    }
+
+    function handleEndGame(outcome) {
+      isGameOver = true;
+      if (outcome.winner === 'X') {
+        scores.x++;
+        scoreXEl.textContent = scores.x;
+        statusText.textContent = "🎉 Bravo, vous avez gagné !";
+        highlightWinner(outcome.combo);
+      } else if (outcome.winner === 'O') {
+        scores.o++;
+        scoreOEl.textContent = scores.o;
+        statusText.textContent = "🤖 J'ai gagné cette manche !";
+        highlightWinner(outcome.combo);
+      } else {
+        scores.ties++;
+        scoreTiesEl.textContent = scores.ties;
+        statusText.textContent = "🤝 Match nul !";
+      }
+    }
+
+    function cellClicked(e) {
+      const idx = parseInt(e.currentTarget.dataset.index);
+      if (board[idx] !== null || isGameOver) return;
+
+      board[idx] = 'X';
+      render();
+
+      const outcome = checkWinner(board);
+      if (outcome) {
+        handleEndGame(outcome);
+      } else {
+        aiTurn();
+      }
+    }
+
+    function resetBoard() {
+      board = Array(9).fill(null);
+      isGameOver = false;
+      render();
+      statusText.textContent = "À vous de jouer (X) !";
+    }
+
+    cells.forEach(c => c.addEventListener('click', cellClicked));
+    resetBtn.addEventListener('click', resetBoard);
+    resetScoresBtn.addEventListener('click', () => {
+      scores = { x: 0, o: 0, ties: 0 };
+      scoreXEl.textContent = '0';
+      scoreOEl.textContent = '0';
+      scoreTiesEl.textContent = '0';
+      resetBoard();
+    });
+
+    render();
+  </script>
+</body>
+</html>
