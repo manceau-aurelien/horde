@@ -766,6 +766,13 @@ function drawHud() {
     ctx.fillText(touchMode ? 'Touchez pour fermer' : 'Tab : fermer la carte', VW / 2, (VH + ms) / 2 + 20);
   } else {
     drawMap(m.x, m.y, m.s, false);
+    if (R.coop && Net.connected) {
+      const net = Net.stats;
+      ctx.font = '600 11px system-ui'; ctx.textAlign = 'right';
+      ctx.fillStyle = net.silentMs > 1500 || net.rtt > 180 ? '#ffb56a' : '#a5d5b0';
+      const label = net.silentMs > 1500 ? 'Connexion instable' : net.rtt === null ? 'Réseau…' : 'Ping ' + net.rtt + ' ms';
+      ctx.fillText(label, m.x + m.s, m.y - 7);
+    }
     if (!touchMode && R.t < 30) { ctx.font = '600 11px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,210,190,0.8)'; ctx.fillText('Tab : grande carte', m.x + m.s / 2, m.y + m.s + 16); }
   }
 

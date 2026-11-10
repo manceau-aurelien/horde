@@ -47,6 +47,7 @@ function newRun(cfg) {
   World.flow(R.players);
   paused = false; menuOpen = false; bigMap = false;
   evq = [];
+  resetSync();
   for (const k in pressed) pressed[k] = false;
   resize();
   return R;
@@ -347,6 +348,11 @@ function tickVisual(p, dt) {
 function updatePlayer(p, dt) {
   if (p.gone) return;
   const st = p.st, inp = p.input;
+  if (!p.local) {
+    p.inputAge = (p.inputAge || 0) + dt;
+    // Une dernière touche « tirer » perdue ne doit pas tirer indéfiniment.
+    if (p.inputAge > 0.25) { inp.attack = false; inp.mx = inp.my = 0; p.moving = false; }
+  }
   tickVisual(p, dt);
   p.invuln = Math.max(0, p.invuln - dt);
   if (p.down) {

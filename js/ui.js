@@ -148,8 +148,8 @@ const UI = (() => {
     }
   }
 
-  function sendHello() { if (coop.role === 'guest') Net.send({ t: 'hello', levels: Save.d.levels }); }
-  function sendCfg() { if (coop.role === 'host') Net.send({ t: 'cfg', hostCls: coop.hostCls }); }
+  function sendHello() { if (coop.role === 'guest') Net.send({ t: 'hello', version: 3, levels: Save.d.levels }); }
+  function sendCfg() { if (coop.role === 'host') Net.send({ t: 'cfg', version: 3, hostCls: coop.hostCls }); }
 
   function coopHost() {
     Sfx.init();
@@ -178,7 +178,7 @@ const UI = (() => {
   function coopStart() {
     if (coop.role !== 'host' || !coop.peerHere) return;
     const cfg = {
-      t: 'start', seed: (Math.random() * 2147483647) | 0, startWave: parseInt($('#coop-wave').value, 10) || 1,
+      t: 'start', version: 3, seed: (Math.random() * 2147483647) | 0, startWave: parseInt($('#coop-wave').value, 10) || 1,
       players: [
         { cls: coop.hostCls, levels: Save.d.levels[coop.hostCls] },
         { cls: other(coop.hostCls), levels: (coop.peerLevels || {})[other(coop.hostCls)] || {} },
@@ -202,13 +202,19 @@ const UI = (() => {
     Net.handlers = {
       onOpen: () => {
         if (Net.role !== 'host') return;
-        coop.peerHere = true; sendCfg();
-        coopStatus('Coéquipier connecté. Lancez quand vous êtes prêts !');
+        coop.peerHere = false; sendCfg();
+        coopStatus('Vérification de la version du coéquipier…');
         Sfx.crate();
       },
       onData: m => {
         if (!m || typeof m !== 'object') return;
-        if (m.t === 'hello' && coop.role === 'host') { coop.peerLevels = m.levels || {}; coop.peerHere = true; sendCfg(); if (screen === 'coop') renderCoop(); }
+        if ((m.t === 'hello' || m.t === 'cfg' || m.t === 'start') && m.version !== 3) {
+          coop.peerHere = false;
+          coopStatus('Versions différentes : actualisez le jeu sur les deux appareils, puis recréez le salon.');
+          if (screen === 'coop') renderCoop();
+          return;
+        }
+        if (m.t === 'hello' && coop.role === 'host') { coop.peerLevels = m.levels || {}; coop.peerHere = true; sendCfg(); coopStatus('Coéquipier connecté. Lancez quand vous êtes prêts !'); if (screen === 'coop') renderCoop(); }
         else if (m.t === 'cfg' && coop.role === 'guest') { coop.hostCls = m.hostCls === 'soldier' ? 'soldier' : 'samurai'; if (screen === 'coop') renderCoop(); }
         else if (m.t === 'start' && coop.role === 'guest') runCoop('guest', m, 1);
         else Game.netMessage(m);

@@ -213,6 +213,7 @@ FX.shake = v => shake(v);
 
 FX.swing = (pid, angle, arc, whirl, dur) => {
   const p = R.players[pid];
+  if (replaying && consumeAttackPreview(p, 'swing')) return;
   p.swingDir = -(p.swingDir || 1);
   p.swingT = dur; p.swingDur = dur; p.swingArc = arc; p.swingWhirl = !!whirl; p.swingAngle = angle;
   if (audible(p.x, p.y)) { if (whirl) Sfx.whirl(); else Sfx.slash(); }
@@ -235,13 +236,14 @@ FX.ult = pid => { const p = R.players[pid]; if (audible(p.x, p.y)) { Sfx.ult(); 
 
 FX.shot = (pid, k, mx, my, arr) => {
   const p = R.players[pid], w = p.st.weapons[k];
+  const previewed = replaying && consumeAttackPreview(p, 'shot');
   for (let i = 0; i < arr.length; i += 2) {
     const a = arr[i], sp = arr[i + 1];
     R.bullets.push({ kind: 'b', owner: pid, x: mx, y: my, px: p.x, py: p.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: k === 'shotgun' ? 3 : 2.5,
       dmg: w.dmg, pierce: w.pierce || 0, life: w.range / sp, hit: [], color: k === 'pistol' ? '#ffe9a0' : k === 'shotgun' ? '#ffcf70' : '#fff3c0' });
   }
-  p.muzzle = 0.05; p.recoil = k === 'shotgun' ? 1.6 : 0.6;
-  if (audible(p.x, p.y)) {
+  if (!previewed) { p.muzzle = 0.05; p.recoil = k === 'shotgun' ? 1.6 : 0.6; }
+  if (!previewed && audible(p.x, p.y)) {
     if (k === 'shotgun') { Sfx.shotgun(); if (p.local) shake(2.5); }
     else if (k === 'pistol') Sfx.shot();
     else Sfx.rifle();
@@ -251,10 +253,11 @@ FX.shot = (pid, k, mx, my, arr) => {
 };
 FX.shell = (pid, mx, my, angle, life) => {
   const p = R.players[pid], w = p.st.weapons.launcher;
+  const previewed = replaying && consumeAttackPreview(p, 'shell');
   R.bullets.push({ kind: 'shell', owner: pid, x: mx, y: my, px: p.x, py: p.y, vx: Math.cos(angle) * w.speed, vy: Math.sin(angle) * w.speed, r: 6,
     dmg: w.dmg, radius: w.radius, life, pierce: 0, hit: [] });
-  p.muzzle = 0.08; p.recoil = 1;
-  if (audible(p.x, p.y)) Sfx.thump();
+  if (!previewed) { p.muzzle = 0.08; p.recoil = 1; }
+  if (!previewed && audible(p.x, p.y)) Sfx.thump();
 };
 FX.wave = (pid, x, y, angle) => {
   const p = R.players[pid], aw = p.st.airWave;
@@ -269,12 +272,13 @@ FX.tshot = (pid, x, y, a) => {
 };
 FX.flame = (pid, mx, my, angle) => {
   const p = R.players[pid], w = p.st.weapons.flamer;
+  const previewed = replaying && consumeAttackPreview(p, 'flame');
   if (!audible(p.x, p.y)) return;
   for (let i = 0; i < 2; i++) {
     const a = angle + rand(-w.arc / 2, w.arc / 2) * 0.8, sp = rand(w.range * 1.6, w.range * 2.6);
     particle(mx, my, Math.cos(a) * sp, Math.sin(a) * sp, rand(0.3, 0.45), rand(5, 9), null, 'fire');
   }
-  Sfx.flame();
+  if (!previewed) Sfx.flame();
 };
 FX.nade = (pid, sx, sy, tx, ty, dur, fuse, dmg, radius, frag, mini) => {
   R.grenades.push({ owner: pid, sx, sy, x: sx, y: sy, tx, ty, t: 0, dur, fuse, h: 0, dmg, radius, frag, mini: !!mini });
@@ -333,7 +337,8 @@ FX.second = pid => {
   Sfx.push(); shakeAt(p.x, p.y, 10);
 };
 FX.levelup = level => {
-  R.level = level;
+  // L'événement fiable peut arriver après un état plus récent sur l'autre canal.
+  R.level = Math.max(R.level, level);
   for (const p of R.players) {
     if (p.gone || p.down) continue;
     FX.ring(p.x, p.y, 0, TAU, 260, 0.6, '255,215,90');

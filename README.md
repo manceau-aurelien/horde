@@ -26,6 +26,20 @@ Chacun garde ses propres âmes et son propre arbre. Les âmes ramassées profite
 
 La liaison est directe entre les deux navigateurs (WebRTC). Le serveur public PeerJS ne sert qu'à les mettre en relation ; il faut donc une connexion Internet, et certains réseaux très restrictifs peuvent bloquer la liaison. La partie continue même si l'un des onglets passe en arrière-plan.
 
+### Réactivité et qualité de connexion
+
+Les positions sont envoyées sur un canal WebRTC non ordonné, sans retransmission : une ancienne position perdue ne retarde plus les suivantes. Les commandes partent à 30 Hz (immédiatement pour un changement de tir ou un pouvoir) et les états du monde à 20 Hz. Le tampon d'envoi des états est limité à 16 Kio ; en cas de congestion, le prochain état remplace celui qui n'a pas pu partir. Les pouvoirs, événements et résultats de fin de partie gardent un canal fiable séparé.
+
+L'invité lisse les mouvements sur une horloge de rendu avec un délai adaptatif de 75 à 160 ms pour absorber les variations du réseau. En cas de perte, le mouvement n'est extrapolé que pendant 80 ms au maximum. Ses déplacements restent locaux ; ses attaques produisent immédiatement une animation ou un son, tandis que l'hôte continue de décider des impacts, des dégâts et du butin. Le ping aller-retour apparaît au-dessus de la mini-carte ; une absence de messages déclenche l'indication « Connexion instable ».
+
+Après une mise à jour, actualisez **les deux appareils** avant de recréer le salon. Le jeu bloque le démarrage entre versions réseau incompatibles. Ces corrections évitent d'accumuler artificiellement du retard ; elles ne suppriment pas la latence physique de la connexion ni les ralentissements d'un appareil surchargé.
+
+### Vérifier la synchronisation
+
+Avec Node.js installé, exécutez `node --test test-network.js`. Les tests couvrent les deux simulations hôte/invité, le retard, la gigue, les pertes de paquets, les messages désordonnés, la saturation du tampon, les actions fiables, les retours visuels, la fin de partie et le redémarrage.
+
+Pour un essai réel, ouvrez le jeu sur deux appareils, créez une partie, vérifiez le ping, puis testez déplacement, tir, pouvoirs, réanimation et retour au salon. Une partie via deux accès Internet distincts reste nécessaire pour évaluer la qualité de la liaison réelle.
+
 ## Les deux personnages
 
 **Le Rōnin** se bat au sabre. Chaque coup de sabre ainsi que chaque pouvoir consomme du Ki, qui se recharge avec le temps :

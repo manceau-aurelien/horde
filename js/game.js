@@ -3,9 +3,16 @@
 
 /* ---------------- Synchronisation : hôte ---------------- */
 const PF = ['hp', 'maxHp', 'energy', 'reviveT', 'invuln', 'grenades', 'atkT', 'pushCd', 'stasisCd', 'stasisT', 'stasisMax', 'ultCd', 'ultT', 'ultMax',
-  'rollCd', 'adrenT', 'adrenCd', 'turretCd', 'nadeCd', 'souls', 'kills'];
+  'rollCd', 'adrenT', 'adrenCd', 'turretCd', 'nadeCd', 'souls', 'kills', 'fireT', 'attackCount'];
 const r1 = v => Math.round(v * 10) / 10;
-let snapT = 0, snapN = 0, heatSendT = 0, inputT = 0;
+const SNAP_INTERVAL = 1 / 20;
+let snapT = 0, snapN = 0, heatSendT = 0, inputT = 0, inputN = 0, actionN = 0;
+
+function resetSync() {
+  snapT = snapN = heatSendT = inputT = inputN = actionN = 0;
+  acc = 0; lastTick = performance.now();
+  R.net = { latest: null, arrival: 0, clock: null, jitter: 0, delay: 0.075 };
+}
 
 function packPlayer(p) {
   const a = [r1(p.x), r1(p.y), Math.round(p.angle * 100) / 100, p.moving ? 1 : 0, p.dash ? 1 : 0, p.down ? 1 : 0, p.gone ? 1 : 0, WEAPON_ORDER.indexOf(p.weapon)];
@@ -15,12 +22,14 @@ function packPlayer(p) {
 }
 
 function netHostTick(dt) {
-  if (evq.length) { Net.send({ t: 'e', ev: evq }); evq = []; }
+  // La fin doit contenir les derniers gains avant l'événement « over », même si un état se perd.
+  const ending = evq.some(ev => ev[0] === 'over');
+  if (evq.length && !ending) { Net.send({ t: 'e', run: R.seed, ev: evq }); evq = []; }
   snapT -= dt;
-  if (snapT > 0) return;
-  snapT = 1 / 15;
+  if (snapT > 1e-8 && !ending) return;
+  snapT += SNAP_INTERVAL;
   const g = R.players[1];
-  if (!g || g.gone) return;
+  if (!g || g.gone) { evq = []; return; }
   // seuls les zombies proches de l'invité sont transmis
   const zs = R.zombies, close = [];
   for (let i = 0; i < zs.length; i++) {
@@ -38,32 +47,113 @@ function netHostTick(dt) {
     dv.setUint8(o + 8, ((z.angle % TAU + TAU) % TAU) / TAU * 255);
   }
   const m = {
-    t: 's', n: ++snapN,
+    t: 's', run: R.seed, n: ++snapN, ts: R.t,
     g: [r1(R.t), R.wave, R.phase === 'fight' ? 1 : 0, r1(R.breakT), r1(R.waveT), R.left, R.normalTotal, R.level, r1(R.xp), R.combo, r1(R.comboT), r1(R.furyT), R.kills, R.cleared],
     p: R.players.map(packPlayer),
     z: buf,
     tu: R.turrets.map(t => [Math.round(t.x), Math.round(t.y), Math.round(t.angle * 100) / 100, r1(t.t), r1(t.max), t.muzzle > 0 ? 1 : 0]),
     cr: R.crates.map(c => [Math.round(c.x), Math.round(c.y), c.big ? 1 : 0, r1(c.t)]),
   };
-  heatSendT -= 1 / 15;
+  heatSendT -= SNAP_INTERVAL;
   if (heatSendT <= 0) { heatSendT = 1; m.h = R.heat.buffer.slice(0); }
-  Net.send(m);
+  if (ending) {
+    Net.send(m);
+    Net.send({ t: 'e', run: R.seed, ev: evq }); evq = [];
+  } else Net.sendLatest(m);
 }
 
 function hostInput(m) {
   const p = R.players[1];
   if (!p || p.gone) return;
   const d = m.d;
+  if (!Array.isArray(d) || d.length !== 8 || !d.every(Number.isFinite)) return;
+  // Les actions restent fiables ; une action retardée ne rembobine pas la position.
+  if (m.t === 'a' && m.a > (p.lastAction || 0)) {
+    p.lastAction = m.a;
+    if (Array.isArray(m.pr)) for (const k of m.pr) if (ACTIONS.includes(k)) p.input.pressed[k] = true;
+  }
+  if (!Number.isFinite(m.n) || m.n <= (p.lastInput || 0)) return;
+  p.lastInput = m.n; p.inputAge = 0;
   if (!p.down) { p.x = clamp(d[0], 20, WORLD - 20); p.y = clamp(d[1], 20, WORLD - 20); World.collide(p, p.r); }
   p.angle = d[2]; p.aimX = d[3]; p.aimY = d[4];
   p.input.mx = d[5]; p.input.my = d[6];
   p.moving = !!(d[5] || d[6]);
   p.input.attack = !!d[7];
-  if (m.pr) for (const k of m.pr) p.input.pressed[k] = true;
 }
 
 /* ---------------- Synchronisation : invité ---------------- */
 let replaying = false;
+
+// Retour visuel immédiat uniquement. Dégâts, munitions et projectiles restent décidés par l'hôte.
+function consumeAttackPreview(p, kind) {
+  if (!p.local || !p.previews) return false;
+  const now = performance.now();
+  p.previews = p.previews.filter(v => now - v.at < 1000);
+  const i = p.previews.findIndex(v => v.kind === kind);
+  if (i < 0) return false;
+  p.previews.splice(i, 1);
+  return true;
+}
+
+function previewAttack(p, dt) {
+  p.previewT = Math.max(0, (p.previewT || 0) - dt);
+  if (!p.input.attack || p.down || p.dash || p.previewT > 1e-8) return;
+  const st = p.st;
+  let kind;
+  if (p.cls === 'samurai') {
+    if (p.ultT > 0 || (R.furyT <= 0 && p.energy < st.swordCost)) return;
+    const count = Math.max(p.previewCount || 0, p.attackCount) + 1;
+    p.previewCount = count;
+    const whirl = st.whirlEvery && count % st.whirlEvery === 0;
+    FX.swing(p.id, p.angle, whirl ? TAU : st.swordArc, !!whirl, whirl ? 0.24 : 0.16);
+    p.previewT = st.swordCd; kind = 'swing';
+  } else {
+    const k = p.weapon, w = st.weapons[k];
+    if (!w.infinite && p.ammo[k] <= 0) return;
+    p.previewT = 1 / (w.rate * (p.adrenT > 0 ? (st.adren.rateMult || 1.5) : 1));
+    kind = k === 'launcher' ? 'shell' : k === 'flamer' ? 'flame' : 'shot';
+    p.muzzle = 0.05; p.recoil = k === 'shotgun' ? 1.6 : 0.6;
+    if (k === 'launcher') Sfx.thump();
+    else if (k === 'flamer') Sfx.flame();
+    else if (k === 'shotgun') Sfx.shotgun();
+    else if (k === 'pistol') Sfx.shot();
+    else Sfx.rifle();
+  }
+  const now = performance.now();
+  p.previews = (p.previews || []).filter(v => now - v.at < 1000);
+  p.previews.push({ kind, at: now });
+}
+
+// Horloge de rendu distincte de la simulation : petit tampon adaptatif, extrapolation bornée.
+function snapshotClock(ts) {
+  const net = R.net, now = performance.now() / 1000;
+  if (net.latest !== null) {
+    const variation = Math.abs((now - net.arrival) - (ts - net.latest));
+    net.jitter += (Math.min(0.3, variation) - net.jitter) * 0.15;
+  }
+  net.delay = clamp(0.075 + net.jitter * 2, 0.075, 0.16);
+  net.latest = ts; net.arrival = now;
+  if (net.clock === null || Math.abs(ts - net.clock) > 0.6) net.clock = ts - net.delay;
+}
+
+function sampleEntity(e, x, y, angle, ts) {
+  const samples = e.samples || (e.samples = []);
+  if (Math.hypot(x - e.x, y - e.y) > 220) { samples.length = 0; e.x = x; e.y = y; }
+  samples.push({ x, y, angle, ts });
+  if (samples.length > 12) samples.shift();
+}
+
+function interpolateEntity(e, time) {
+  const s = e.samples;
+  if (!s || !s.length || time === null) return;
+  while (s.length > 2 && s[1].ts <= time) s.shift();
+  let a = s[0], b = s[1] || a;
+  const duration = b.ts - a.ts;
+  // Au plus 80 ms de mouvement deviné, puis arrêt en cas de coupure.
+  const f = duration > 0 ? clamp((time - a.ts) / duration, 0, 1 + Math.min(0.08 / duration, 1)) : 0;
+  e.x = a.x + (b.x - a.x) * f; e.y = a.y + (b.y - a.y) * f;
+  e.angle = a.angle + angDiff(b.angle, a.angle) * Math.min(f, 1);
+}
 
 function applyEvents(list) {
   replaying = true;
@@ -76,15 +166,16 @@ function applyEvents(list) {
 function applySnapshot(m) {
   if (m.n <= R.lastSnap) return;
   R.lastSnap = m.n;
+  snapshotClock(m.ts);
   const g = m.g;
-  R.t = g[0]; R.wave = g[1]; R.phase = g[2] ? 'fight' : 'break'; R.breakT = g[3]; R.waveT = g[4]; R.left = g[5]; R.normalTotal = g[6];
-  R.level = g[7]; R.dmgMult = levelDmg(R.level); R.xp = g[8]; R.combo = g[9]; R.comboBest = Math.max(R.comboBest, R.combo); R.comboT = g[10]; R.furyT = g[11]; R.kills = g[12];
+  R.t = m.ts; R.wave = g[1]; R.phase = g[2] ? 'fight' : 'break'; R.breakT = g[3]; R.waveT = g[4]; R.left = g[5]; R.normalTotal = g[6];
+  R.level = Math.max(R.level, g[7]); R.dmgMult = levelDmg(R.level); R.xp = g[8]; R.combo = g[9]; R.comboBest = Math.max(R.comboBest, R.combo); R.comboT = g[10]; R.furyT = g[11]; R.kills = g[12];
   if (g[13] > R.cleared) { R.cleared = g[13]; hooks.onWaveClear && hooks.onWaveClear(R.cleared); }
 
   m.p.forEach((a, i) => {
     const p = R.players[i];
     if (!p) return;
-    if (!p.local) { p.tx = a[0]; p.ty = a[1]; p.tangle = a[2]; p.moving = !!a[3]; p.dashing = !!a[4]; }
+    if (!p.local) { sampleEntity(p, a[0], a[1], a[2], m.ts); p.moving = !!a[3]; p.dashing = !!a[4]; }
     const wasDown = p.down;
     p.down = !!a[5]; p.gone = !!a[6];
     if (p.local && p.down && !wasDown) { p.dash = null; }
@@ -113,8 +204,7 @@ function applySnapshot(m) {
       z.hp = hpf * z.maxHp;
       zmap.set(id, z);
     }
-    z.px = z.x; z.py = z.y; z.tx = x; z.ty = y; z.lt = 0; z.ta = ang;
-    if (Math.abs(x - z.x) > 220 || Math.abs(y - z.y) > 220) { z.x = z.px = x; z.y = z.py = y; } // téléporté
+    sampleEntity(z, x, y, ang, m.ts);
     if (hpf < z.hpf - 0.004) {
       z.flash = 0.08;
       if (audible(z.x, z.y)) {
@@ -140,10 +230,19 @@ function applySnapshot(m) {
 
 function stepGuest(dt) {
   R.t += dt;
+  const net = R.net;
+  if (net.clock !== null) {
+    const age = Math.max(0, performance.now() / 1000 - net.arrival);
+    const target = net.latest + Math.min(age, 0.2) - net.delay;
+    net.clock = Math.min(net.latest + 0.08, net.clock + dt * clamp(1 + (target - net.clock) * 4, 0.8, 1.2));
+  }
+  // La grille et les collisions utilisent les positions affichées de ce pas.
+  for (const z of R.zombies) interpolateEntity(z, net.clock);
   const p = me();
   gridBuild();
   readLocalInput(p);
   const inp = p.input;
+  previewAttack(p, dt);
   if (inp.pressed.mobility && !tryDash(p)) delete inp.pressed.mobility;
   moveLocal(p, dt);
   if (p.dash) { p.dash.t -= dt; if (p.dash.t <= 0) p.dash = null; }
@@ -158,17 +257,11 @@ function stepGuest(dt) {
   for (const q of R.players) {
     tickVisual(q, dt);
     if (q.local) continue;
-    q.x += (q.tx - q.x) * Math.min(1, dt * 18);
-    q.y += (q.ty - q.y) * Math.min(1, dt * 18);
-    if (q.tangle !== undefined) q.angle += angDiff(q.tangle, q.angle) * Math.min(1, dt * 20);
+    interpolateEntity(q, net.clock);
     if (q.moving) q.walkPhase += dt * q.st.speed / 22;
     q.dash = q.dashing ? (q.dash || { vx: Math.cos(q.angle) * 900, vy: Math.sin(q.angle) * 900, t: 1, hit: new Set() }) : null;
   }
   for (const z of R.zombies) {
-    z.lt += dt;
-    const f = Math.min(1, z.lt * 15);
-    z.x = z.px + (z.tx - z.px) * f; z.y = z.py + (z.ty - z.py) * f;
-    z.angle += angDiff(z.ta, z.angle) * Math.min(1, dt * 12);
     z.wob += dt * 6;
     if (z.flash > 0) z.flash -= dt;
     if (z.burn && Math.random() < 0.15 && audible(z.x, z.y)) particle(z.x + rand(-z.r, z.r) * 0.5, z.y + rand(-z.r, z.r) * 0.5, rand(-20, 20), rand(-40, -10), 0.4, rand(3, 6), null, 'fire');
@@ -180,18 +273,19 @@ function stepGuest(dt) {
   // envoi des commandes : position, visée et actions
   inputT -= dt;
   const pr = Object.keys(inp.pressed);
-  if (inputT <= 0 || pr.length) {
+  if (inputT <= 1e-8 || pr.length || inp.attack !== p.sentAttack) {
     inputT = 1 / 30;
-    const msg = { t: 'i', d: [r1(p.x), r1(p.y), Math.round(p.angle * 100) / 100, Math.round(p.aimX), Math.round(p.aimY), r1(inp.mx), r1(inp.my), inp.attack ? 1 : 0] };
-    if (pr.length) msg.pr = pr;
-    Net.send(msg);
-    inp.pressed = {};
+    const msg = { t: 'i', run: R.seed, n: ++inputN, d: [r1(p.x), r1(p.y), Math.round(p.angle * 100) / 100, Math.round(p.aimX), Math.round(p.aimY), r1(inp.mx), r1(inp.my), inp.attack ? 1 : 0] };
+    Net.sendLatest(msg);
+    // Les pouvoirs ponctuels ne doivent pas disparaître avec un paquet de position.
+    if (pr.length && Net.send({ ...msg, t: 'a', a: ++actionN, pr })) inp.pressed = {};
+    p.sentAttack = inp.attack;
   }
 }
 
 function netMessage(m) {
-  if (!R || !m) return;
-  if (m.t === 'i' && R.mode === 'host') hostInput(m);
+  if (!R || !m || m.run !== R.seed) return;
+  if ((m.t === 'i' || m.t === 'a') && R.mode === 'host') hostInput(m);
   else if (R.mode === 'guest') {
     if (m.t === 's') applySnapshot(m);
     else if (m.t === 'e') applyEvents(m.ev);
@@ -216,7 +310,7 @@ function step(dt) {
     R.overT += dt;
     updateFx(dt * Math.max(0.15, 1 - R.overT));
     for (const z of R.zombies) z.wob += dt * 2;
-    if (R.mode === 'host' && evq.length) { Net.send({ t: 'e', ev: evq }); evq = []; }
+    if (R.mode === 'host' && evq.length) netHostTick(0);
     if (R.overT > 1.8 && !R.endSent) {
       R.endSent = true;
       hooks.onEnd && hooks.onEnd(summary());
