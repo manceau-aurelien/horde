@@ -9,30 +9,96 @@ const Save = (() => {
     totals: { kills: 0, runs: 0, souls: 0 },
     settings: { volume: 0.6, muted: false, dmgNumbers: true, shake: true, autoAim: false, autoAttack: false },
   });
+  /* Plusieurs parties nommées (une par coéquipier, par exemple).
+     La première garde l'ancienne clé : une progression existante devient « Ma partie ».
+     Les réglages (son, visée…) suivent le joueur d'une partie à l'autre. */
+  const PROFILES_KEY = 'horde-profiles-v1';
+  const MAIN = 'main';
+  const keyOf = id => (id === MAIN ? SAVE_KEY : SAVE_KEY + ':' + id);
+  const cleanName = (name, fallback) => String(name || '').replace(/\s+/g, ' ').trim().slice(0, 24) || fallback;
+  let index = { active: MAIN, list: [{ id: MAIN, name: 'Ma partie', created: Date.now() }] };
   let data = blank();
   let dirty = false;
+
+  function readJSON(key) {
+    try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+  }
+  function writeJSON(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch (e) { return false; /* stockage indisponible */ }
+  }
+  function normalize(d) {
+    const b = blank();
+    if (!d || typeof d !== 'object') return b;
+    const out = Object.assign(b, d);
+    out.levels = Object.assign(blank().levels, d.levels || {});
+    out.best = Object.assign(blank().best, d.best || {});
+    out.totals = Object.assign(blank().totals, d.totals || {});
+    out.settings = Object.assign(blank().settings, d.settings || {});
+    return out;
+  }
   function load() {
-    try {
-      const raw = localStorage.getItem(SAVE_KEY);
-      if (raw) {
-        const d = JSON.parse(raw);
-        const b = blank();
-        data = Object.assign(b, d);
-        data.levels = Object.assign(b.levels, d.levels || {});
-        data.best = Object.assign(blank().best, d.best || {});
-        data.totals = Object.assign(blank().totals, d.totals || {});
-        data.settings = Object.assign(blank().settings, d.settings || {});
-      }
-    } catch (e) { /* sauvegarde illisible : on repart de zéro */ }
+    const ix = readJSON(PROFILES_KEY);
+    if (ix && Array.isArray(ix.list) && ix.list.length) index = ix;
+    if (!index.list.some(p => p.id === index.active)) index.active = index.list[0].id;
+    data = normalize(readJSON(keyOf(index.active)));
   }
   function save() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); dirty = false; } catch (e) { /* stockage indisponible */ }
+    data.lastPlayed = Date.now();
+    if (writeJSON(keyOf(index.active), data)) dirty = false;
+    writeJSON(PROFILES_KEY, index);
   }
-  function reset() { data = blank(); save(); }
+  // remet à zéro la partie en cours (son nom et les réglages sont gardés)
+  function reset() { const settings = data.settings; data = blank(); data.settings = settings; save(); }
+
+  function list() {
+    return index.list.map(p => {
+      const d = p.id === index.active ? data : normalize(readJSON(keyOf(p.id)));
+      return { id: p.id, name: p.name, active: p.id === index.active, best: d.best, souls: d.souls, runs: d.totals.runs,
+        lastPlayed: d.lastPlayed || p.created };
+    });
+  }
+  function create(name) {
+    const id = 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+    index.list.push({ id, name: cleanName(name, 'Partie ' + (index.list.length + 1)), created: Date.now() });
+    const fresh = blank(); fresh.settings = Object.assign({}, data.settings);
+    writeJSON(keyOf(id), fresh);
+    writeJSON(PROFILES_KEY, index);
+    return id;
+  }
+  function switchTo(id) {
+    if (!index.list.some(p => p.id === id) || id === index.active) return;
+    save();                                   // on range la partie en cours
+    const settings = data.settings;
+    index.active = id;
+    data = normalize(readJSON(keyOf(id)));
+    data.settings = Object.assign({}, settings);
+    save();
+  }
+  function rename(id, name) {
+    const p = index.list.find(x => x.id === id);
+    if (!p) return;
+    p.name = cleanName(name, p.name);
+    writeJSON(PROFILES_KEY, index);
+  }
+  function remove(id) {
+    if (index.list.length <= 1) return;       // il reste toujours au moins une partie
+    try { localStorage.removeItem(keyOf(id)); } catch (e) { /* navigation privée */ }
+    index.list = index.list.filter(p => p.id !== id);
+    if (index.active === id) {
+      const settings = data.settings;
+      index.active = index.list[0].id;
+      data = normalize(readJSON(keyOf(index.active)));
+      data.settings = settings;
+    }
+    save();
+  }
+
   setInterval(() => { if (dirty) save(); }, 4000);
   return {
-    load, save, reset,
+    load, save, reset, list, create, switchTo, rename, remove,
     get d() { return data; },
+    get activeName() { const p = index.list.find(x => x.id === index.active); return p ? p.name : 'Ma partie'; },
+    get count() { return index.list.length; },
     addSouls(n) { data.souls += n; data.totals.souls += n; dirty = true; },
     markDirty() { dirty = true; },
   };
@@ -57,12 +123,14 @@ const UI = (() => {
     if (name === 'menu') renderMenu();
     if (name === 'tree') renderTree(true);
     if (name === 'coop') { sendHello(); renderCoop(); }
+    if (name === 'saves') renderSaves();
   }
 
   /* ---------------- Menu principal ---------------- */
   function renderMenu() {
     const d = Save.d;
     $('#menu-souls').textContent = nf(d.souls);
+    $('#menu-profile').textContent = Save.activeName;
     for (const cls of ['samurai', 'soldier']) {
       const card = document.querySelector('.class-card[data-cls="' + cls + '"]');
       card.classList.toggle('sel', d.cls === cls);
@@ -98,6 +166,56 @@ const UI = (() => {
     return TREES[cls].nodes.some(n => nodeState(cls, n, lv) === 'buy');
   }
 
+  /* ---------------- Parties enregistrées ---------------- */
+  function openSaves(from) {
+    $('#scr-saves').dataset.from = from || 'menu';
+    setScreen('saves');
+  }
+  function renderSaves() {
+    const box = $('#saves-list');
+    box.innerHTML = '';
+    const items = Save.list().sort((a, b) => (b.active - a.active) || (b.lastPlayed - a.lastPlayed));
+    for (const p of items) {
+      const best = [p.best.samurai ? 'Rōnin vague ' + p.best.samurai : '', p.best.soldier ? 'Soldat vague ' + p.best.soldier : ''].filter(Boolean).join(' · ') || 'Jamais jouée';
+      const when = p.lastPlayed ? new Date(p.lastPlayed).toLocaleDateString('fr-FR') : '';
+      const it = el('div', 'save-item' + (p.active ? ' active' : ''));
+      const main = el('div', 'si-main');
+      const name = el('div', 'si-name'); name.textContent = p.name;
+      if (p.active) name.appendChild(el('span', 'si-badge', 'EN COURS'));
+      const meta = el('div', 'si-meta');
+      meta.textContent = best + ' · 👻 ' + nf(p.souls) + ' âmes' + (when ? ' · jouée le ' + when : '');
+      main.append(name, meta);
+      const btns = el('div', 'si-btns');
+      if (!p.active) {
+        const b = el('button', 'btn small primary', 'Choisir');
+        b.onclick = () => { Sfx.init(); Sfx.click(); Save.switchTo(p.id); applySettings(); renderSaves(); };
+        btns.appendChild(b);
+      }
+      const rn = el('button', 'btn small', 'Renommer');
+      rn.onclick = () => { const v = prompt('Nouveau nom de la partie :', p.name); if (v !== null) { Save.rename(p.id, v); renderSaves(); } };
+      btns.appendChild(rn);
+      if (Save.count > 1) {
+        const del = el('button', 'btn small ghost danger', 'Supprimer');
+        del.onclick = () => {
+          if (!confirm('Supprimer la partie « ' + p.name + ' » ? Ses âmes, arbres et records seront perdus (une copie de secours est gardée un moment).')) return;
+          Save.remove(p.id); applySettings(); renderSaves();
+        };
+        btns.appendChild(del);
+      }
+      it.append(main, btns);
+      box.appendChild(it);
+    }
+  }
+  function createSave() {
+    const input = $('#save-new-name');
+    const id = Save.create(input.value);
+    input.value = '';
+    Save.switchTo(id);
+    applySettings();
+    Sfx.init(); Sfx.buy();
+    renderSaves();
+  }
+
   /* ---------------- Partie ---------------- */
   function startGame() {
     Sfx.init();
@@ -120,6 +238,7 @@ const UI = (() => {
 
   function renderCoop() {
     const inRoom = !!coop.role;
+    $('#coop-profile').textContent = Save.activeName;
     $('#coop-idle').hidden = inRoom;
     $('#coop-room').hidden = !inRoom;
     $('#btn-coop-host').disabled = coop.busy;
@@ -614,6 +733,11 @@ const UI = (() => {
     $('#btn-coop-tree').addEventListener('click', () => { treeCls = coop.role ? myCoopCls() : Save.d.cls; selected = null; $('#scr-tree').dataset.from = 'coop'; setScreen('tree'); });
     $('#btn-coop-back').addEventListener('click', () => { coopLeave(); setScreen('menu'); });
     $('#btn-options').addEventListener('click', () => openOptions('menu'));
+    $('#btn-profile').addEventListener('click', () => openSaves('menu'));
+    $('#btn-coop-profile').addEventListener('click', () => openSaves('coop'));
+    $('#btn-saves-back').addEventListener('click', () => setScreen($('#scr-saves').dataset.from === 'coop' ? 'coop' : 'menu'));
+    $('#btn-save-new').addEventListener('click', createSave);
+    $('#save-new-name').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') createSave(); });
     $('#btn-tree-back').addEventListener('click', () => setScreen($('#scr-tree').dataset.from || 'menu'));
     $('#btn-tree-reset').addEventListener('click', resetTree);
     $('#btn-tree-play').addEventListener('click', () => {

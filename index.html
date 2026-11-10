@@ -24,6 +24,7 @@
         <p>Un labyrinthe. Une marée de zombies. Seul… ou à deux.</p>
       </header>
       <div class="souls-big">👻 <span id="menu-souls">0</span> <small>âmes</small></div>
+      <button id="btn-profile" class="profile-chip" title="Changer de partie">📁 Partie : <b id="menu-profile">Ma partie</b> <span>changer</span></button>
       <div class="classes">
         <button class="class-card" data-cls="samurai">
           <div class="portrait samurai"></div>
@@ -76,6 +77,7 @@
     <div class="panel wide coop">
       <h2>👥 Coop en ligne</h2>
       <p class="coop-intro">Deux joueurs, chacun sur son écran : l'un incarne <b>le Rōnin</b>, l'autre <b>le Soldat</b>. Chacun garde ses âmes et son arbre de compétences. Un joueur à terre peut être relevé par l'autre.</p>
+      <button id="btn-coop-profile" class="profile-chip" title="Changer de partie">📁 Partie utilisée : <b id="coop-profile">Ma partie</b> <span>changer</span></button>
       <div id="coop-idle" class="coop-idle">
         <button id="btn-coop-host" class="btn primary big">Créer une partie</button>
         <span class="coop-or">ou</span>
@@ -99,6 +101,21 @@
         <button id="btn-coop-tree" class="btn">🌳 Compétences</button>
         <button id="btn-coop-back" class="btn ghost">← Retour</button>
       </div>
+    </div>
+  </section>
+
+  <!-- Parties enregistrées -->
+  <section id="scr-saves" class="screen overlay solid">
+    <div class="panel wide saves">
+      <h2>📁 Parties enregistrées</h2>
+      <p class="saves-intro">Une partie par coéquipier : chacune garde ses âmes, ses arbres et ses records. Choisissez celle qui correspond à la personne avec qui vous jouez.</p>
+      <div id="saves-list" class="saves-list"></div>
+      <div class="saves-new">
+        <input id="save-new-name" maxlength="24" placeholder="Nom de la nouvelle partie (ex. : avec Léo)" autocomplete="off" spellcheck="false">
+        <button id="btn-save-new" class="btn primary">＋ Créer</button>
+      </div>
+      <div id="saves-guard"></div>
+      <div class="menu-btns"><button id="btn-saves-back" class="btn">← Retour</button></div>
     </div>
   </section>
 
@@ -151,7 +168,7 @@
   <script src="save-guard.js"></script>
   <script>
     // Sauvegarde renforcée : pas d'écrasement par un vieil onglet, copies de secours, export / import.
-    SaveGuard.protect({ app: 'horde', name: 'Horde', keys: ['horde-save-v1'], canReload: () => !(typeof Game !== 'undefined' && Game.R) && !(typeof Net !== 'undefined' && Net.connected) });
+    SaveGuard.protect({ app: 'horde', name: 'Horde', prefixes: ['horde-save-v1', 'horde-profiles-v1'], canReload: () => !(typeof Game !== 'undefined' && Game.R) && !(typeof Net !== 'undefined' && Net.connected) });
   </script>
   <script src="js/data.js"></script>
   <script src="js/audio.js"></script>
@@ -163,6 +180,9 @@
   <script src="js/net.js"></script>
   <script src="js/game.js"></script>
   <script src="js/ui.js"></script>
-  <script>SaveGuard.mount(document.querySelector('#scr-options .panel'), document.getElementById('btn-opt-back'));</script>
+  <script>
+    SaveGuard.mount(document.querySelector('#scr-options .panel'), document.getElementById('btn-opt-back'));
+    SaveGuard.mount(document.getElementById('saves-guard'));
+  </script>
 </body>
 </html>
