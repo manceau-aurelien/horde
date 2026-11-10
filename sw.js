@@ -1,9 +1,10 @@
-const CACHE_NAME = 'horde-v3';
+const CACHE_NAME = 'horde-v4';
 const PRECACHE_URLS = [
   './',
   './index.html',
   './style.css',
   './manifest.json',
+  './save-guard.js',
   './icon.svg',
   './icon-192.png',
   './icon-512.png',

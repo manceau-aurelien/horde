@@ -148,6 +148,11 @@
     <div id="touch-btns"></div>
   </div>
 
+  <script src="save-guard.js"></script>
+  <script>
+    // Sauvegarde renforcée : pas d'écrasement par un vieil onglet, copies de secours, export / import.
+    SaveGuard.protect({ app: 'horde', name: 'Horde', keys: ['horde-save-v1'], canReload: () => !(typeof Game !== 'undefined' && Game.R) });
+  </script>
   <script src="js/data.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/sprites.js"></script>
@@ -158,5 +163,6 @@
   <script src="js/net.js"></script>
   <script src="js/game.js"></script>
   <script src="js/ui.js"></script>
+  <script>SaveGuard.mount(document.querySelector('#scr-options .panel'), document.getElementById('btn-opt-back'));</script>
 </body>
 </html>
