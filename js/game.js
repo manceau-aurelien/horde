@@ -6,6 +6,13 @@ const PF = ['hp', 'maxHp', 'energy', 'reviveT', 'invuln', 'grenades', 'atkT', 'p
   'rollCd', 'adrenT', 'adrenCd', 'turretCd', 'nadeCd', 'souls', 'kills', 'fireT', 'attackCount'];
 const r1 = v => Math.round(v * 10) / 10;
 const SNAP_INTERVAL = 1 / 20;
+// Zone envoyée à l'invité (demi-largeur, demi-hauteur) : un peu plus que son écran.
+// L'invité ne montre une mort que dans la zone BURST, plus petite, pour ne pas confondre
+// un zombie sorti de la zone avec un zombie tué.
+const SEND_W = 1150, SEND_H = 860, BURST_W = 1070, BURST_H = 780;
+// Au-delà de ce nombre, les zombies sont envoyés par lots tournants (1 lot par état) :
+// une énorme horde ne sature plus la connexion.
+const ZOMBIES_PER_SNAP = 320, MAX_LOTS = 4;
 let snapT = 0, snapN = 0, heatSendT = 0, inputT = 0, inputN = 0, actionN = 0;
 
 function resetSync() {
@@ -34,11 +41,14 @@ function netHostTick(dt) {
   const zs = R.zombies, close = [];
   for (let i = 0; i < zs.length; i++) {
     const z = zs[i];
-    if (!z.dead && Math.abs(z.x - g.x) < 1300 && Math.abs(z.y - g.y) < 980) close.push(z);
+    if (!z.dead && Math.abs(z.x - g.x) < SEND_W && Math.abs(z.y - g.y) < SEND_H) close.push(z);
   }
-  const buf = new ArrayBuffer(close.length * 9), dv = new DataView(buf);
-  for (let i = 0; i < close.length; i++) {
-    const z = close[i], o = i * 9;
+  const zk = Math.min(MAX_LOTS, Math.max(1, Math.ceil(close.length / ZOMBIES_PER_SNAP)));
+  const zp = (snapN + 1) % zk;
+  const part = zk > 1 ? close.filter(z => z.d.boss || (z.id & 0xffff) % zk === zp) : close;
+  const buf = new ArrayBuffer(part.length * 9), dv = new DataView(buf);
+  for (let i = 0; i < part.length; i++) {
+    const z = part[i], o = i * 9;
     dv.setUint16(o, z.id & 0xffff);
     dv.setUint16(o + 2, clamp(z.x * 8, 0, 65535));
     dv.setUint16(o + 4, clamp(z.y * 8, 0, 65535));
@@ -47,7 +57,7 @@ function netHostTick(dt) {
     dv.setUint8(o + 8, ((z.angle % TAU + TAU) % TAU) / TAU * 255);
   }
   const m = {
-    t: 's', run: R.seed, n: ++snapN, ts: R.t,
+    t: 's', run: R.seed, n: ++snapN, ts: R.t, zk, zp,
     g: [r1(R.t), R.wave, R.phase === 'fight' ? 1 : 0, r1(R.breakT), r1(R.waveT), R.left, R.normalTotal, R.level, r1(R.xp), R.combo, r1(R.comboT), r1(R.furyT), R.kills, R.cleared],
     p: R.players.map(packPlayer),
     z: buf,
@@ -125,13 +135,14 @@ function previewAttack(p, dt) {
 }
 
 // Horloge de rendu distincte de la simulation : petit tampon adaptatif, extrapolation bornée.
-function snapshotClock(ts) {
+function snapshotClock(ts, zk = 1) {
   const net = R.net, now = performance.now() / 1000;
   if (net.latest !== null) {
     const variation = Math.abs((now - net.arrival) - (ts - net.latest));
     net.jitter += (Math.min(0.3, variation) - net.jitter) * 0.15;
   }
-  net.delay = clamp(0.075 + net.jitter * 2, 0.075, 0.16);
+  // avec des lots tournants, chaque zombie n'est revu que tous les zk états : on affiche un peu plus tard
+  net.delay = Math.max(clamp(0.075 + net.jitter * 2, 0.075, 0.16), 0.075 + (zk - 1) * SNAP_INTERVAL);
   net.latest = ts; net.arrival = now;
   if (net.clock === null || Math.abs(ts - net.clock) > 0.6) net.clock = ts - net.delay;
 }
@@ -166,7 +177,7 @@ function applyEvents(list) {
 function applySnapshot(m) {
   if (m.n <= R.lastSnap) return;
   R.lastSnap = m.n;
-  snapshotClock(m.ts);
+  snapshotClock(m.ts, m.zk || 1);
   const g = m.g;
   R.t = m.ts; R.wave = g[1]; R.phase = g[2] ? 'fight' : 'break'; R.breakT = g[3]; R.waveT = g[4]; R.left = g[5]; R.normalTotal = g[6];
   R.level = Math.max(R.level, g[7]); R.dmgMult = levelDmg(R.level); R.xp = g[8]; R.combo = g[9]; R.comboBest = Math.max(R.comboBest, R.combo); R.comboT = g[10]; R.furyT = g[11]; R.kills = g[12];
@@ -217,10 +228,13 @@ function applySnapshot(m) {
     z.seen = m.n;
     list.push(z);
   }
+  const zk = m.zk || 1, zp = m.zp || 0;
   for (const z of R.zombies) {
     if (z.seen === m.n) continue;
+    // zombie d'un autre lot : il sera mis à jour par l'un des prochains états
+    if (zk > 1 && !z.d.boss && z.id % zk !== zp) { list.push(z); continue; }
     zmap.delete(z.id);
-    if (Math.abs(z.x - me1.x) < 1150 && Math.abs(z.y - me1.y) < 830) { bloodBurst(z, true); if (z.d.boss) shake(14); }
+    if (Math.abs(z.x - me1.x) < BURST_W && Math.abs(z.y - me1.y) < BURST_H) { bloodBurst(z, true); if (z.d.boss) shake(14); }
   }
   R.zombies = list;
   R.turrets = m.tu.map(a => ({ x: a[0], y: a[1], angle: a[2], t: a[3], max: a[4], muzzle: a[5] ? 0.05 : 0 }));

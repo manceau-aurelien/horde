@@ -284,10 +284,10 @@
   }
 
   function openImport() {
-    const m = modal('<h3>Importer une sauvegarde</h3><p>Collez le code de sauvegarde, ou choisissez le fichier exporté. La progression actuelle sera remplacée (elle reste en copie de secours).</p>' +
+    const m = modal('<h3>Importer une sauvegarde</h3><p>Collez le code de sauvegarde, ou choisissez le fichier exporté (même renommé). La progression actuelle sera remplacée (elle reste en copie de secours).</p>' +
       '<textarea placeholder="SG1:…"></textarea><div class="sg-err"></div>' +
       '<div class="sg-row"><button class="sg-btn" data-a="file">Choisir un fichier</button><button class="sg-btn" data-a="cancel">Annuler</button><button class="sg-btn sg-main" data-a="ok">Restaurer</button></div>' +
-      '<input type="file" accept=".txt,.json,text/plain,application/json" hidden>');
+      '<input type="file" hidden>');
     const ta = m.querySelector('textarea'), err = m.querySelector('.sg-err'), input = m.querySelector('input');
     const restore = text => {
       try {

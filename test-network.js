@@ -254,3 +254,25 @@ test('ping aller-retour et arrêt des statistiques à la fermeture', async () =>
   t.net.close();
   assert.equal(t.net.connected, false);
 });
+
+test('grosse horde : envoi par lots tournants, sans fausses morts chez l\'invité', () => {
+  const h = game('host'), g = game('guest');
+  // 1 200 zombies autour de l'invité, assez loin pour ne toucher personne pendant le test
+  h.run(`{ const p = R.players[1]; for (let i = 0; i < 1200; i++) { const a = i * 2.399, d = 350 + (i % 50) * 12;
+    spawnZombie('walker', p.x + Math.cos(a) * d, p.y + Math.sin(a) * d); } }`);
+  g.run('globalThis.bursts = 0; const ob = bloodBurst; bloodBurst = function () { bursts++; return ob.apply(this, arguments); }');
+  for (let i = 0; i < 60; i++) h.step();
+  const states = h.sent.filter(v => v.m.t === 's').map(v => v.m);
+  assert.ok(states.every(m => m.z.byteLength <= (h.run('ZOMBIES_PER_SNAP') + 40) * 9), 'chaque état reste petit');
+  assert.ok(states.some(m => m.zk > 1), 'la horde est découpée en lots');
+  for (const m of states) g.deliver(m);
+  const sent = h.run('R.zombies.filter(z => Math.abs(z.x - R.players[1].x) < SEND_W && Math.abs(z.y - R.players[1].y) < SEND_H).length');
+  assert.ok(Math.abs(g.run('R.zombies.length') - sent) <= 12, 'l\'invité voit toute la horde');
+  assert.equal(g.run('bursts'), 0);
+  // un zombie vraiment tué disparaît chez l'invité dès le passage de son lot
+  const id = h.run('const z = R.zombies.find(z => Math.hypot(z.x - R.players[1].x, z.y - R.players[1].y) < 600); killZombie(z, R.players[0]); z.id & 0xffff');
+  for (let i = 0; i < 20; i++) h.step();
+  for (const v of h.sent.filter(v => v.m.t === 's').slice(states.length)) g.deliver(v.m);
+  assert.equal(g.run(`R.zombies.some(z => z.id === ${id})`), false);
+  assert.equal(g.run('bursts'), 1);
+});
