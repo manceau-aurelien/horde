@@ -267,8 +267,8 @@ const UI = (() => {
     }
   }
 
-  function sendHello() { if (coop.role === 'guest') Net.send({ t: 'hello', version: 4, levels: Save.d.levels }); }
-  function sendCfg() { if (coop.role === 'host') Net.send({ t: 'cfg', version: 4, hostCls: coop.hostCls }); }
+  function sendHello() { if (coop.role === 'guest') Net.send({ t: 'hello', version: 5, levels: Save.d.levels }); }
+  function sendCfg() { if (coop.role === 'host') Net.send({ t: 'cfg', version: 5, hostCls: coop.hostCls }); }
 
   function coopHost() {
     Sfx.init();
@@ -297,7 +297,7 @@ const UI = (() => {
   function coopStart() {
     if (coop.role !== 'host' || !coop.peerHere) return;
     const cfg = {
-      t: 'start', version: 4, seed: (Math.random() * 2147483647) | 0, startWave: parseInt($('#coop-wave').value, 10) || 1,
+      t: 'start', version: 5, seed: (Math.random() * 2147483647) | 0, startWave: parseInt($('#coop-wave').value, 10) || 1,
       players: [
         { cls: coop.hostCls, levels: Save.d.levels[coop.hostCls] },
         { cls: other(coop.hostCls), levels: (coop.peerLevels || {})[other(coop.hostCls)] || {} },
@@ -327,7 +327,7 @@ const UI = (() => {
       },
       onData: m => {
         if (!m || typeof m !== 'object') return;
-        if ((m.t === 'hello' || m.t === 'cfg' || m.t === 'start') && m.version !== 4) {
+        if ((m.t === 'hello' || m.t === 'cfg' || m.t === 'start') && m.version !== 5) {
           coop.peerHere = false;
           coopStatus('Versions différentes : actualisez le jeu sur les deux appareils, puis recréez le salon.');
           if (screen === 'coop') renderCoop();

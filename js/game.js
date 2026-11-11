@@ -81,6 +81,9 @@ function hostInput(m) {
   if (m.t === 'a' && m.a > (p.lastAction || 0)) {
     p.lastAction = m.a;
     if (Array.isArray(m.pr)) for (const k of m.pr) if (ACTIONS.includes(k)) p.input.pressed[k] = true;
+    // point visé par une grenade en visée automatique
+    if (Array.isArray(m.ng) && m.ng.length === 2 && m.ng.every(Number.isFinite))
+      p.nadeAim = { x: clamp(m.ng[0], 0, WORLD), y: clamp(m.ng[1], 0, WORLD), t: R.t };
   }
   if (!Number.isFinite(m.n) || m.n <= (p.lastInput || 0)) return;
   p.lastInput = m.n; p.inputAge = 0;
@@ -292,7 +295,9 @@ function stepGuest(dt) {
     const msg = { t: 'i', run: R.seed, n: ++inputN, d: [r1(p.x), r1(p.y), Math.round(p.angle * 100) / 100, Math.round(p.aimX), Math.round(p.aimY), r1(inp.mx), r1(inp.my), inp.attack ? 1 : 0] };
     Net.sendLatest(msg);
     // Les pouvoirs ponctuels ne doivent pas disparaître avec un paquet de position.
-    if (pr.length && Net.send({ ...msg, t: 'a', a: ++actionN, pr })) inp.pressed = {};
+    const act = { ...msg, t: 'a', a: ++actionN, pr };
+    if (p.nadeAim && pr.includes('secondary')) act.ng = [Math.round(p.nadeAim.x), Math.round(p.nadeAim.y)];
+    if (pr.length && Net.send(act)) { inp.pressed = {}; p.nadeAim = null; }
     p.sentAttack = inp.attack;
   }
 }

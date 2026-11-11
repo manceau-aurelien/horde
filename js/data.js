@@ -139,29 +139,29 @@ const TREES = {
 
   soldier: {
     branches: [
-      { name: 'Pistolet', x: 0.5 },
+      { name: 'Maniement', x: 0.5 },
       { name: 'Armes', x: 2.75 },
       { name: 'Logistique', x: 5.25 },
       { name: 'Tactique', x: 7.5 },
       { name: 'Corps', x: 9.85 },
     ],
     nodes: [
-      // --- Pistolet ---
-      { id: 'pis_dmg', name: 'Calibre', icon: '🔫', max: 20, cost: 8, mult: 1.42, x: 0.5, y: 0,
-        desc: 'Le pistolet (munitions illimitées) fait plus de dégâts.',
-        fx: l => pc(l >= 20 ? 4.0 : 0.14 * l) + ' de dégâts au pistolet' },
-      { id: 'pis_rate', name: 'Détente rapide', icon: '⚡', max: 12, cost: 14, mult: 1.45, x: 0, y: 1, req: [['pis_dmg', 2]],
-        desc: 'Le pistolet tire plus vite.',
-        fx: l => fmt(3.8 * (1 + (l >= 12 ? 1.5 : 0.08 * l))) + ' tirs / seconde' },
+      // --- Maniement : profite à TOUTES les armes ---
+      { id: 'pis_dmg', name: 'Calibre', icon: '🔫', max: 20, cost: 11, mult: 1.42, x: 0.5, y: 0,
+        desc: 'Toutes les armes font plus de dégâts : pistolet, pompe, fusil, lance-flammes, lance-grenades et mitrailleuse.',
+        fx: l => pc(l >= 20 ? 4.0 : 0.14 * l) + ' de dégâts, toutes armes' },
+      { id: 'pis_rate', name: 'Détente rapide', icon: '⚡', max: 12, cost: 18, mult: 1.45, x: 0, y: 1, req: [['pis_dmg', 2]],
+        desc: 'Toutes les armes tirent plus vite. Le fusil, la mitrailleuse et le lance-flammes ont une cadence plafonnée : le surplus se change en dégâts.',
+        fx: l => pc(l >= 12 ? 1.5 : 0.08 * l) + ' de cadence, toutes armes (pistolet : ' + fmt(3.8 * (1 + (l >= 12 ? 1.5 : 0.08 * l))) + ' tirs / s)' },
       { id: 'pis_crit', name: 'Tir précis', icon: '🎯', max: 8, cost: 20, mult: 1.45, x: 1, y: 1, req: [['pis_dmg', 3]],
         desc: 'Chance de coup critique, pour toutes les armes.',
         fx: l => l >= 8 ? '50 % de critique (dégâts ×2,6)' : Math.round(5 + 3.5 * l) + ' % de critique (dégâts ×2)' },
-      { id: 'pis_pierce', name: 'Balles perforantes', icon: '📌', max: 3, cost: 40, mult: 1.9, ultCost: 5.5, x: 0, y: 2, req: [['pis_rate', 2]],
-        desc: 'Les balles du pistolet traversent davantage de zombies : alignez la horde dans un couloir.',
-        fx: l => 'Traverse ' + (l >= 3 ? 7 : 2 + l) + ' zombies' },
-      { id: 'pis_dual', name: 'Pistolets jumelés', icon: '✌️', max: 2, cost: 150, mult: 2.2, ultCost: 5.5, x: 0.5, y: 3, req: [['pis_pierce', 1], ['pis_crit', 2]],
-        desc: 'Tire plusieurs balles à la fois.',
-        fx: l => (l >= 2 ? 4 : 1 + l) + ' balle' + (l ? 's' : '') + ' par tir' },
+      { id: 'pis_pierce', name: 'Balles perforantes', icon: '📌', max: 3, cost: 50, mult: 1.9, ultCost: 5.5, x: 0, y: 2, req: [['pis_rate', 2]],
+        desc: 'Les balles traversent davantage de zombies (pistolet, pompe, fusil, mitrailleuse) : alignez la horde dans un couloir.',
+        fx: l => 'Pistolet : traverse ' + (l >= 3 ? 7 : 2 + l) + ' zombies · autres armes : +' + (l >= 3 ? 4 : l) },
+      { id: 'pis_dual', name: 'Pistolets jumelés', icon: '✌️', max: 2, cost: 180, mult: 2.2, ultCost: 5.5, x: 0.5, y: 3, req: [['pis_pierce', 1], ['pis_crit', 2]],
+        desc: 'Le pistolet tire plusieurs balles à la fois, et les autres armes ont une chance de tirer sans consommer de munition.',
+        fx: l => (l >= 2 ? 4 : 1 + l) + ' balle' + (l ? 's' : '') + ' par tir · ' + (l >= 2 ? 50 : 20 * l) + ' % de tirs gratuits' },
 
       // --- Armes ---
       { id: 'w_shotgun', name: 'Fusil à pompe', icon: '💣', max: 10, cost: 20, mult: 1.38, x: 2.75, y: 0,
@@ -398,7 +398,7 @@ function computeStats(cls, levels) {
     };
     W.shotgun = {
       unlocked: !!L('w_shotgun'),
-      dmg: 12 * wl('w_shotgun'),
+      dmg: 16 * wl('w_shotgun'),
       rate: 1.25,
       pellets: L('w_shotgun') >= 10 ? 14 : 5 + Math.floor(L('w_shotgun') / 2),
       spread: 0.5, speed: 860, range: 360,
@@ -435,9 +435,24 @@ function computeStats(cls, levels) {
       crate: 260,
       slow: L('w_minigun') >= 10 ? 1.0 : 0.62,
     };
+    // Branche Maniement : dégâts, cadence, perforation et économie pour TOUTES les armes.
+    // Fusil, mitrailleuse et lance-flammes ont une cadence plafonnée : au-delà, le bonus devient des dégâts
+    // (le jeu reste fluide et le coop n'est pas noyé sous les tirs).
+    const allDmg = 1 + (L('pis_dmg') >= 20 ? 4.0 : 0.14 * L('pis_dmg'));
+    const allRate = 1 + (L('pis_rate') >= 12 ? 1.5 : 0.08 * L('pis_rate'));
+    const allPierce = L('pis_pierce') >= 3 ? 4 : L('pis_pierce');
+    const thrift = L('pis_dual') >= 2 ? 0.5 : 0.2 * L('pis_dual');
+    const RATE_CAP = { rifle: 13, minigun: 28, flamer: 18 };
     for (const k of WEAPON_ORDER) {
       const w = W[k];
       if (w.infinite) continue;
+      let gain = allDmg, rate = w.rate * allRate;
+      if (RATE_CAP[k] && rate > RATE_CAP[k]) { gain *= rate / RATE_CAP[k]; rate = RATE_CAP[k]; }
+      w.rate = rate;
+      w.dmg *= gain;
+      if (w.burn) w.burn *= gain;
+      if (w.pierce) w.pierce += allPierce;
+      w.thrift = thrift;
       const baseCrate = w.crate;
       w.crate = Math.max(1, Math.round(baseCrate * crateMult));
       w.cap = Math.max(w.crate, Math.round(w.crate * 2.5 * capMult));

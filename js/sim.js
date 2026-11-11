@@ -240,6 +240,12 @@ function aimTarget(p) {
   c.sort((a, b) => a._d - b._d);
   let best = null;
   for (let i = 0; i < c.length && i < 14; i++) if (World.los(p.x, p.y, c[i].x, c[i].y)) { best = c[i]; break; }
+  // On garde la cible précédente tant qu'elle reste presque aussi proche : moins de volte-face incessantes.
+  const prev = p.aimTgt;
+  if (best && prev && prev !== best && !prev.dead && (R.auth || R.zmap.get(prev.id) === prev)) {
+    const dp = dist2(prev.x, prev.y, p.x, p.y);
+    if (dp < maxR * maxR && dp < best._d * 1.6 && World.los(p.x, p.y, prev.x, prev.y)) best = prev;
+  }
   p.aimTgt = best; p.aimTgtT = R.t;
   return best;
 }
@@ -282,6 +288,15 @@ function readLocalInput(p) {
     }
   }
   inp.attack = attackHeld && !menuOpen && !p.down;
+  // Grenade en visée automatique : lancée sur le plus gros paquet de zombies à portée.
+  if (pressed.secondary && !manualAim && !menuOpen && p.cls === 'soldier' && p.st.grenades && p.grenades > 0) {
+    const spot = grenadeSpot(p, p.st.grenades.radius);
+    if (spot) {
+      p.nadeAim = { x: spot.x, y: spot.y, t: R.t };
+      p.aimX = spot.x; p.aimY = spot.y;
+      p.angle = Math.atan2(spot.y - p.y, spot.x - p.x);
+    }
+  }
   for (const k of ACTIONS) if (pressed[k]) { if (!menuOpen) inp.pressed[k] = true; pressed[k] = false; }
 }
 
@@ -604,7 +619,7 @@ function fire(p, st, w) {
     }
     fx('shot', p.id, k, mx, my, arr);
   }
-  if (!w.infinite && R.furyT <= 0) {
+  if (!w.infinite && R.furyT <= 0 && !(w.thrift && Math.random() < w.thrift)) {
     p.ammo[k]--;
     if (p.ammo[k] <= 0) { p.ammo[k] = 0; p.weapon = bestWeapon(p); fx('psfx', p.id, 'empty'); }
   }
@@ -622,11 +637,39 @@ function flameTick(p, w) {
   });
 }
 
+// Visée automatique : point (à portée de lancer) qui touche le plus de zombies dans le rayon de la grenade.
+const NADE_RANGE = 420;
+function grenadeSpot(p, radius) {
+  const c = [], minD = 70;
+  near(p.x, p.y, NADE_RANGE + radius * 0.5, z => {
+    const d = dist2(z.x, z.y, p.x, p.y);
+    if (d < NADE_RANGE * NADE_RANGE && d > minD * minD) c.push(z);
+  });
+  if (!c.length) return null;
+  const step = Math.max(1, Math.ceil(c.length / 90)), rr = radius * 0.8, r2 = rr * rr;
+  let best = null, bestS = 0;
+  for (let i = 0; i < c.length; i += step) {
+    const a = c[i];
+    let s = 0, sx = 0, sy = 0;
+    near(a.x, a.y, rr, z => {
+      if (dist2(z.x, z.y, a.x, a.y) > r2) return;
+      const w = z.d && z.d.boss ? 6 : z.d && z.d.mass >= 4 ? 3 : 1;
+      s += w; sx += z.x * w; sy += z.y * w;
+    });
+    // à nombre égal, on préfère le groupe le plus proche
+    const score = s - Math.sqrt(dist2(a.x, a.y, p.x, p.y)) / NADE_RANGE * 0.5;
+    if (s > 0 && score > bestS) { bestS = score; best = { x: sx / s, y: sy / s }; }
+  }
+  return best;
+}
+
 function throwGrenade(p, st) {
   p.grenades--;
   p.nadeCd = 0.35;
+  if (p.nadeAim && R.t - p.nadeAim.t < 0.6) { p.aimX = p.nadeAim.x; p.aimY = p.nadeAim.y; }
+  p.nadeAim = null;
   let dx = p.aimX - p.x, dy = p.aimY - p.y, d = Math.hypot(dx, dy);
-  const maxD = 420;
+  const maxD = NADE_RANGE;
   if (d > maxD) { dx *= maxD / d; dy *= maxD / d; d = maxD; }
   if (d < 60) { dx = Math.cos(p.angle) * 60; dy = Math.sin(p.angle) * 60; }
   // les grenades passent par-dessus les murs mais ne restent pas dedans
@@ -1063,7 +1106,6 @@ function openCrate(c, p) {
     p.ammo[k] = Math.min(w.cap, p.ammo[k] + Math.max(1, Math.round(w.crate * f)));
     const got = p.ammo[k] - before;
     if (got > 0) msgs.push('+' + got + ' ' + WEAPON_NAMES[k]);
-    if (p.weapon === 'pistol' && got > 0) p.weapon = k;
   };
   if (list.length) {
     const weights = list.map(k => 1.2 - p.ammo[k] / st.weapons[k].cap);
@@ -1165,7 +1207,6 @@ function updatePickups(dt) {
           const g = Math.max(1, Math.round(w.crate * o.v));
           p.ammo[k] = Math.min(w.cap, p.ammo[k] + g);
           fx('text', p.x, p.y - 30, '+' + g + ' ' + WEAPON_NAMES[k], '#ffd86a', 0.9, 0.8);
-          if (p.weapon === 'pistol') p.weapon = k;
         }
       }
       fx('pick', o.id, p.id, o.kind);

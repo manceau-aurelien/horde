@@ -67,7 +67,8 @@ function buildMapCanvas() {
 function render() {
   if (!R) return;
   const p = me();
-  const lead = 40;
+  // En visée automatique, la cible change sans cesse : la caméra ne suit pas l'orientation (sinon l'écran tremble).
+  const lead = settings.autoAim || (touchMode && !sticks.aim) ? 0 : 40;
   const tx = p.x + Math.cos(p.angle) * lead, ty = p.y + Math.sin(p.angle) * lead;
   R.cam.x += (tx - R.cam.x) * 0.12;
   R.cam.y += (ty - R.cam.y) * 0.12;

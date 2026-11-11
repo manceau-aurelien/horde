@@ -51,6 +51,8 @@ Pour un essai réel, ouvrez le jeu sur deux appareils, créez une partie, vérif
 
 **Le Soldat** a un pistolet à munitions illimitées dont les balles traversent plusieurs zombies : dans un couloir, aligner la horde paie. Le fusil à pompe, le fusil d'assaut, le lance-flammes, le lance-grenades et la mitrailleuse se débloquent dans l'arbre ; leurs munitions se trouvent dans les **caisses** dispersées dans le labyrinthe. Grenades (elles passent par-dessus les murs), roulade, adrénaline et tourelle complètent l'arsenal.
 
+La branche **Maniement** (Calibre, Détente rapide, Tir précis, Balles perforantes, Pistolets jumelés) profite à **toutes les armes** : investir dans le pistolet rend aussi les armes ramassées plus fortes. Ramasser une caisse ne change pas l'arme en main. En visée automatique, la caméra ne suit plus l'orientation du tir, et les grenades partent seules vers le plus gros groupe de zombies à portée.
+
 ## Commandes
 
 | Action | Clavier et souris | Tactile |
